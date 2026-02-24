@@ -14,7 +14,7 @@ use anyhow::Context;
 use clap::Parser;
 use tracing::{debug, error, info};
 
-use crate::cli::{CacheCommand, Cli, Command, SkillCommand};
+use crate::cli::{CacheCommand, Cli, Command, SelfCommand, SkillCommand};
 use crate::config::{Config, ObjectStoreAuthMode};
 
 fn main() {
@@ -72,6 +72,9 @@ fn command_name(command: &Command) -> &'static str {
         },
         Command::Skill { command } => match command {
             SkillCommand::Install { .. } => "skill_install",
+        },
+        Command::SelfCmd { command } => match command {
+            SelfCommand::Update => "self_update",
         },
     }
 }

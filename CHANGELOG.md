@@ -7,6 +7,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+
+- `pkgrep self update` command to update the current binary from GitHub Releases with SHA256 verification.
+
+### Changed
+
+- `pkgrep self update` now detects Homebrew-managed installs and directs users to `brew upgrade pkgrep`.
+
 ## [0.2.0] - 2026-02-24
 
 ### Added

@@ -2,11 +2,12 @@ mod cache;
 mod path;
 mod pull;
 mod remove;
+mod self_update;
 mod skill;
 
 use std::path::Path;
 
-use crate::cli::{CacheCommand, Command, SkillCommand};
+use crate::cli::{CacheCommand, Command, SelfCommand, SkillCommand};
 use crate::config::Config;
 use crate::depspec::DepSpec;
 
@@ -26,6 +27,9 @@ pub fn execute(cwd: &Path, config: &Config, command: Command) -> anyhow::Result<
                 target,
                 force,
             } => skill::run_skill_install(cwd, mode, target, force),
+        },
+        Command::SelfCmd { command } => match command {
+            SelfCommand::Update => self_update::run_self_update(),
         },
     }
 }
