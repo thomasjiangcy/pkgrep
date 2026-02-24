@@ -298,7 +298,7 @@ git push origin v0.1.0
 ```
 
 2. GitHub Actions workflow `Release` builds and uploads platform artifacts to the GitHub Release.
-3. GitHub Actions workflow `Homebrew Tap Publish` updates `Formula/pkgrep.rb` in your tap repository.
+3. The same `Release` workflow updates `Formula/pkgrep.rb` in your tap repository.
 
 Required repo settings for Homebrew publish:
 
