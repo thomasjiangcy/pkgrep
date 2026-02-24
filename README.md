@@ -123,6 +123,7 @@ pkgrep skill install --force
 - `pkgrep path <dep-spec>`
 - `pkgrep remove <dep-spec ...> [--yes]`
 - `pkgrep skill install [--mode project|global] [--target <skills-dir>] [--force]`
+- `pkgrep self update`
 - `pkgrep cache hydrate [dep-spec ...]`
 - `pkgrep cache clean [--yes]`
 - `pkgrep cache prune [--yes]`
@@ -173,6 +174,9 @@ pkgrep cache clean --yes
 # Prune unreferenced cached checkouts/mirrors (dry-run by default)
 pkgrep cache prune
 pkgrep cache prune --yes
+
+# Update pkgrep from GitHub Releases (for direct installs)
+pkgrep self update
 ```
 
 Current behavior:
@@ -190,6 +194,7 @@ Current behavior:
 - With remote backend configured, `pull` attempts remote hydrate first; if missing, it fetches from Git and then publishes to remote cache.
 - `cache prune` reconciles stale project references from the global index, then prunes unreferenced local checkouts and git mirrors.
 - `cache prune` dry-run output shows human-readable dependency identities plus filesystem paths.
+- `self update` is disabled for Homebrew-managed installs; use `brew upgrade pkgrep` in that case.
 
 ## Local Index Files
 

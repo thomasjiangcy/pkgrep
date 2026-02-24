@@ -58,6 +58,13 @@ pub enum Command {
         #[command(subcommand)]
         command: SkillCommand,
     },
+
+    /// Self-management operations.
+    #[command(name = "self")]
+    SelfCmd {
+        #[command(subcommand)]
+        command: SelfCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -105,6 +112,12 @@ pub enum SkillCommand {
         #[arg(long)]
         force: bool,
     },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SelfCommand {
+    /// Update pkgrep to the latest GitHub Release for this platform.
+    Update,
 }
 
 #[cfg(test)]
@@ -183,6 +196,17 @@ mod tests {
                 assert_eq!(target.as_deref(), Some(std::path::Path::new("/tmp/skills")));
                 assert!(force);
             }
+            _ => panic!("unexpected command"),
+        }
+    }
+
+    #[test]
+    fn parses_self_update_command() {
+        let cli = Cli::try_parse_from(["pkgrep", "self", "update"]).expect("parse");
+        match cli.command {
+            Command::SelfCmd {
+                command: SelfCommand::Update,
+            } => {}
             _ => panic!("unexpected command"),
         }
     }
