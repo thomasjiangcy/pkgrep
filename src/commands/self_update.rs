@@ -94,6 +94,14 @@ pub(super) fn run_self_update() -> anyhow::Result<()> {
     println!("Self update: extracting binary");
     let binary_bytes = extract_binary_from_archive(&archive_bytes, BINARY_NAME)?;
 
+    if current_binary_matches(&install_path, &binary_bytes)? {
+        println!(
+            "Self update: already up to date (installed binary matches latest release asset {})",
+            latest_tag
+        );
+        return Ok(());
+    }
+
     println!("Self update: installing to {}", install_path.display());
     replace_binary_atomically(&install_path, &binary_bytes)?;
 
@@ -275,6 +283,17 @@ fn extract_binary_from_archive(archive_bytes: &[u8], binary_name: &str) -> anyho
     }
 
     anyhow::bail!("archive did not contain '{}' binary", binary_name)
+}
+
+fn current_binary_matches(install_path: &Path, new_binary_bytes: &[u8]) -> anyhow::Result<bool> {
+    let current_binary = fs::read(install_path).with_context(|| {
+        format!(
+            "failed to read currently installed binary at {}",
+            install_path.display()
+        )
+    })?;
+
+    Ok(current_binary == new_binary_bytes)
 }
 
 fn replace_binary_atomically(install_path: &Path, binary_bytes: &[u8]) -> anyhow::Result<()> {
@@ -470,6 +489,18 @@ mod tests {
         assert_eq!(
             compute_sha256_hex(b"pkgrep"),
             "7c4a9fd86307ac1c7e673feb6c384d13721b56366218aceec4d9b594dd97d437"
+        );
+    }
+
+    #[test]
+    fn parses_sha256_with_star_prefix_in_filename_token() {
+        let checksum = "a3f5c6a9ef72ecf833cca3fe4f8e07017ffea8e95fa5f2c2f3127fd39f8f8f2f *pkgrep-v0.2.0-x86_64-unknown-linux-gnu.tar.gz\n";
+
+        let parsed =
+            parse_sha256_for_archive(checksum, "pkgrep-v0.2.0-x86_64-unknown-linux-gnu.tar.gz");
+        assert_eq!(
+            parsed.as_deref(),
+            Some("a3f5c6a9ef72ecf833cca3fe4f8e07017ffea8e95fa5f2c2f3127fd39f8f8f2f")
         );
     }
 }
