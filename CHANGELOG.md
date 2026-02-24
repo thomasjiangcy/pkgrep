@@ -7,6 +7,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Fixed
+
+- `pkgrep self update` now exits without replacing the executable when the installed binary already matches the latest release asset bytes.
+
 ## [0.3.0] - 2026-02-24
 
 ### Added
