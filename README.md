@@ -87,6 +87,34 @@ cargo install --path .
 pkgrep --help
 ```
 
+## Agent Skill
+
+This repo includes an Agent Skills-compatible usage skill at `skills/pkgrep-usage`.
+
+Install into the current project (default target: `<cwd>/.codex/skills`):
+
+```bash
+./scripts/install-skill.sh
+```
+
+Install globally (default target: `${CODEX_HOME:-$HOME/.codex}/skills`):
+
+```bash
+./scripts/install-skill.sh --mode global
+```
+
+Install into a custom skills directory:
+
+```bash
+./scripts/install-skill.sh --target /path/to/skills
+```
+
+Replace an existing install:
+
+```bash
+./scripts/install-skill.sh --force
+```
+
 ## Usage
 
 `pkgrep` currently exposes these commands:
