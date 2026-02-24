@@ -31,7 +31,7 @@ That creates a gap for agent-assisted development:
 ### Homebrew
 
 ```bash
-brew tap thomasjiangcy/<tap>
+brew tap thomasjiangcy/homebrew-tap
 brew install pkgrep
 ```
 
