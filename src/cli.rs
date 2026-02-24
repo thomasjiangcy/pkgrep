@@ -1,4 +1,6 @@
-use clap::{Parser, Subcommand};
+use std::path::PathBuf;
+
+use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -50,6 +52,12 @@ pub enum Command {
         #[command(subcommand)]
         command: CacheCommand,
     },
+
+    /// Skill operations.
+    Skill {
+        #[command(subcommand)]
+        command: SkillCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -72,6 +80,30 @@ pub enum CacheCommand {
         /// Required for destructive action.
         #[arg(long)]
         yes: bool,
+    },
+}
+
+#[derive(Clone, Debug, ValueEnum)]
+pub enum SkillInstallMode {
+    Project,
+    Global,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SkillCommand {
+    /// Install the bundled pkgrep usage skill.
+    Install {
+        /// Install target mode. Defaults to project.
+        #[arg(long, value_enum, default_value_t = SkillInstallMode::Project)]
+        mode: SkillInstallMode,
+
+        /// Explicit skills directory. Overrides mode-based default target root.
+        #[arg(long)]
+        target: Option<PathBuf>,
+
+        /// Replace an existing installed skill directory.
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -120,6 +152,36 @@ mod tests {
         match cli.command {
             Command::Path { dep_spec } => {
                 assert_eq!(dep_spec, "git:https://example.com/repo.git@v1")
+            }
+            _ => panic!("unexpected command"),
+        }
+    }
+
+    #[test]
+    fn parses_skill_install_global_force_with_target() {
+        let cli = Cli::try_parse_from([
+            "pkgrep",
+            "skill",
+            "install",
+            "--mode",
+            "global",
+            "--target",
+            "/tmp/skills",
+            "--force",
+        ])
+        .expect("parse");
+        match cli.command {
+            Command::Skill {
+                command:
+                    SkillCommand::Install {
+                        mode,
+                        target,
+                        force,
+                    },
+            } => {
+                assert!(matches!(mode, SkillInstallMode::Global));
+                assert_eq!(target.as_deref(), Some(std::path::Path::new("/tmp/skills")));
+                assert!(force);
             }
             _ => panic!("unexpected command"),
         }

@@ -14,7 +14,7 @@ use anyhow::Context;
 use clap::Parser;
 use tracing::{debug, error, info};
 
-use crate::cli::{CacheCommand, Cli, Command};
+use crate::cli::{CacheCommand, Cli, Command, SkillCommand};
 use crate::config::{Config, ObjectStoreAuthMode};
 
 fn main() {
@@ -69,6 +69,9 @@ fn command_name(command: &Command) -> &'static str {
             CacheCommand::Hydrate { .. } => "cache_hydrate",
             CacheCommand::Clean { .. } => "cache_clean",
             CacheCommand::Prune { .. } => "cache_prune",
+        },
+        Command::Skill { command } => match command {
+            SkillCommand::Install { .. } => "skill_install",
         },
     }
 }

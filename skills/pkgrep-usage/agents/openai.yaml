@@ -1,0 +1,5 @@
+version: 1
+name: pkgrep-usage
+display_name: pkgrep Usage
+short_description: Fetch and link dependency source with pkgrep
+default_prompt: Use pkgrep commands to fetch dependency source code and expose linked paths in the current project.

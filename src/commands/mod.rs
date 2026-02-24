@@ -2,10 +2,11 @@ mod cache;
 mod path;
 mod pull;
 mod remove;
+mod skill;
 
 use std::path::Path;
 
-use crate::cli::{CacheCommand, Command};
+use crate::cli::{CacheCommand, Command, SkillCommand};
 use crate::config::Config;
 use crate::depspec::DepSpec;
 
@@ -18,6 +19,13 @@ pub fn execute(cwd: &Path, config: &Config, command: Command) -> anyhow::Result<
             CacheCommand::Hydrate { dep_specs } => cache::run_cache_hydrate(cwd, config, dep_specs),
             CacheCommand::Clean { yes } => cache::run_cache_clean(cwd, config, yes),
             CacheCommand::Prune { yes } => cache::run_cache_prune(cwd, config, yes),
+        },
+        Command::Skill { command } => match command {
+            SkillCommand::Install {
+                mode,
+                target,
+                force,
+            } => skill::run_skill_install(cwd, mode, target, force),
         },
     }
 }
