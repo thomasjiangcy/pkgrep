@@ -7,6 +7,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-02-24
+
 ### Added
 
 - `pkgrep self update` command to update the current binary from GitHub Releases with SHA256 verification.
@@ -45,6 +47,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Git-only source retrieval pipeline with npm/PyPI dependency resolution mapped to upstream git repos.
 - Remote cache support via object stores (`s3`, `azure_blob`) with hydrate/publish flow.
 
-[Unreleased]: https://github.com/thomasjiangcy/pkgrep/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/thomasjiangcy/pkgrep/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/thomasjiangcy/pkgrep/releases/tag/v0.1.0
