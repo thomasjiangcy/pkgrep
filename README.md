@@ -91,7 +91,7 @@ pkgrep --help
 
 This repo includes an Agent Skills-compatible usage skill at `skills/pkgrep-usage`.
 
-Install into the current project (default target: `<cwd>/.codex/skills`):
+Install into the current project (default target: `<cwd>/.agents/skills`):
 
 ```bash
 ./scripts/install-skill.sh

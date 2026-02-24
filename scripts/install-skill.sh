@@ -10,7 +10,7 @@ Usage:
 
 Options:
   --mode    Install mode. Defaults to project.
-            project -> <cwd>/.codex/skills
+            project -> <cwd>/.agents/skills
             global  -> ${CODEX_HOME:-$HOME/.codex}/skills
   --target  Explicit skills directory. Overrides --mode destination root.
   --force   Replace existing installed skill directory.
@@ -62,7 +62,7 @@ fi
 if [ -z "$TARGET_DIR" ]; then
   case "$MODE" in
     project)
-      TARGET_DIR="$(pwd)/.codex/skills"
+      TARGET_DIR="$(pwd)/.agents/skills"
       ;;
     global)
       TARGET_DIR="${CODEX_HOME:-$HOME/.codex}/skills"
