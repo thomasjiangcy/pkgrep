@@ -82,6 +82,7 @@ jobs:
         with:
           files: |
             dist/**/*.tar.gz
+            dist/**/*.sha256
             checksums.txt
           generate_release_notes: true
 
@@ -130,8 +131,8 @@ jobs:
 
           checksum_for() {
             local target="$1"
-            local file="release-assets/pkgrep-${TAG}-${target}.tar.gz.sha256"
-            awk '{print $1}' "$file"
+            local archive="pkgrep-${TAG}-${target}.tar.gz"
+            awk -v archive="${archive}" '$2 == archive { print $1 }' release-assets/checksums.txt
           }
 
           MAC_ARM_SHA="$(checksum_for "${MAC_ARM_TARGET}")"
