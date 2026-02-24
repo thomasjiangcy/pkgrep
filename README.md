@@ -115,32 +115,6 @@ Replace an existing install:
 pkgrep skill install --force
 ```
 
-Local script fallback (for repository checkouts):
-
-Install into the current project:
-
-```bash
-./scripts/install-skill.sh
-```
-
-Install globally:
-
-```bash
-./scripts/install-skill.sh --mode global
-```
-
-Install into custom skills directory:
-
-```bash
-./scripts/install-skill.sh --target /path/to/skills
-```
-
-Replace an existing install:
-
-```bash
-./scripts/install-skill.sh --force
-```
-
 ## Usage
 
 `pkgrep` currently exposes these commands:
