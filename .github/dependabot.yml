@@ -6,7 +6,7 @@ updates:
       interval: "daily"
       time: "06:00"
       timezone: "UTC"
-    versioning-strategy: "increase"
+    versioning-strategy: "auto"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -14,4 +14,3 @@ updates:
       interval: "daily"
       time: "06:00"
       timezone: "UTC"
-    versioning-strategy: "increase"
