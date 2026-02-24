@@ -1,0 +1,4 @@
+[tools]
+rust = "stable"
+just = "latest"
+lefthook = "latest"

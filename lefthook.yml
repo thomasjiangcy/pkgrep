@@ -1,0 +1,12 @@
+pre-commit:
+  parallel: true
+  commands:
+    no_mocks:
+      run: ./.dev/check_no_mocks.sh
+    fmt_check:
+      run: cargo fmt --all --check
+
+pre-push:
+  commands:
+    ci:
+      run: cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-targets --all-features -q
