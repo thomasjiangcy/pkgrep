@@ -19,7 +19,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache cargo artifacts
-        uses: Swatinem/rust-cache@v2.8.1
+        uses: Swatinem/rust-cache@v2.8.2
 
       - name: Format check
         run: cargo fmt --all --check
@@ -40,7 +40,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo artifacts
-        uses: Swatinem/rust-cache@v2.8.1
+        uses: Swatinem/rust-cache@v2.8.2
 
       - name: Remote E2E (S3)
         run: cargo test --test remote_cache_e2e e2e_s3_remote_roundtrip -- --ignored --nocapture
@@ -55,7 +55,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo artifacts
-        uses: Swatinem/rust-cache@v2.8.1
+        uses: Swatinem/rust-cache@v2.8.2
 
       - name: Remote E2E (Azure Blob)
         run: cargo test --test remote_cache_e2e e2e_azure_remote_roundtrip -- --ignored --nocapture
