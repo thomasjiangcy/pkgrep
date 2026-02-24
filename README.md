@@ -91,19 +91,45 @@ pkgrep --help
 
 This repo includes an Agent Skills-compatible usage skill at `skills/pkgrep-usage`.
 
-Install into the current project (default target: `<cwd>/.agents/skills`):
+Install via the `pkgrep` CLI into the current project (default target: `<cwd>/.agents/skills`):
+
+```bash
+pkgrep skill install
+```
+
+Install globally (default target: `$HOME/.agents/skills`):
+
+```bash
+pkgrep skill install --mode global
+```
+
+Install into a custom skills directory:
+
+```bash
+pkgrep skill install --target /path/to/skills
+```
+
+Replace an existing install:
+
+```bash
+pkgrep skill install --force
+```
+
+Local script fallback (for repository checkouts):
+
+Install into the current project:
 
 ```bash
 ./scripts/install-skill.sh
 ```
 
-Install globally (default target: `${CODEX_HOME:-$HOME/.codex}/skills`):
+Install globally:
 
 ```bash
 ./scripts/install-skill.sh --mode global
 ```
 
-Install into a custom skills directory:
+Install into custom skills directory:
 
 ```bash
 ./scripts/install-skill.sh --target /path/to/skills
@@ -122,6 +148,7 @@ Replace an existing install:
 - `pkgrep pull [dep-spec ...]`
 - `pkgrep path <dep-spec>`
 - `pkgrep remove <dep-spec ...> [--yes]`
+- `pkgrep skill install [--mode project|global] [--target <skills-dir>] [--force]`
 - `pkgrep cache hydrate [dep-spec ...]`
 - `pkgrep cache clean [--yes]`
 - `pkgrep cache prune [--yes]`

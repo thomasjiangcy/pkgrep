@@ -154,6 +154,71 @@ fn remove_without_yes_is_noop() {
 }
 
 #[test]
+fn skill_install_defaults_to_project_agents_skills() {
+    let temp = TempDir::new().expect("tempdir");
+    cmd_in_temp(&temp)
+        .args(["skill", "install"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Installed skill: "));
+
+    let installed_skill = temp
+        .path()
+        .join(".agents")
+        .join("skills")
+        .join("pkgrep-usage")
+        .join("SKILL.md");
+    assert!(
+        installed_skill.exists(),
+        "expected installed skill file at {}",
+        installed_skill.display()
+    );
+}
+
+#[test]
+fn skill_install_global_uses_home_agents_skills_and_force_replaces() {
+    let temp = TempDir::new().expect("tempdir");
+    let fake_home = temp.path().join("home");
+    std::fs::create_dir_all(&fake_home).expect("create fake home");
+
+    cmd_in_temp(&temp)
+        .env("HOME", &fake_home)
+        .args(["skill", "install", "--mode", "global"])
+        .assert()
+        .success();
+
+    let global_skill_dir = fake_home
+        .join(".agents")
+        .join("skills")
+        .join("pkgrep-usage");
+    let marker_path = global_skill_dir.join("MARKER.txt");
+    std::fs::write(&marker_path, "marker").expect("write marker");
+
+    cmd_in_temp(&temp)
+        .env("HOME", &fake_home)
+        .args(["skill", "install", "--mode", "global"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("skill destination already exists"));
+
+    cmd_in_temp(&temp)
+        .env("HOME", &fake_home)
+        .args(["skill", "install", "--mode", "global", "--force"])
+        .assert()
+        .success();
+
+    assert!(
+        !marker_path.exists(),
+        "expected force install to replace existing skill directory"
+    );
+    assert!(
+        global_skill_dir.join("SKILL.md").exists(),
+        "expected SKILL.md in {}",
+        global_skill_dir.display()
+    );
+}
+
+#[test]
 fn cache_clean_without_yes_is_noop() {
     let temp = TempDir::new().expect("tempdir");
     cmd_in_temp(&temp)

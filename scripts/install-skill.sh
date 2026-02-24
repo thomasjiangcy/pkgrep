@@ -11,7 +11,7 @@ Usage:
 Options:
   --mode    Install mode. Defaults to project.
             project -> <cwd>/.agents/skills
-            global  -> ${CODEX_HOME:-$HOME/.codex}/skills
+            global  -> $HOME/.agents/skills
   --target  Explicit skills directory. Overrides --mode destination root.
   --force   Replace existing installed skill directory.
   -h, --help  Show this help text.
@@ -65,7 +65,7 @@ if [ -z "$TARGET_DIR" ]; then
       TARGET_DIR="$(pwd)/.agents/skills"
       ;;
     global)
-      TARGET_DIR="${CODEX_HOME:-$HOME/.codex}/skills"
+      TARGET_DIR="$HOME/.agents/skills"
       ;;
     *)
       echo "error: --mode must be 'project' or 'global'" >&2
