@@ -1,0 +1,8 @@
+[[package]]
+name = "requests"
+version = "2.32.3"
+description = "Fixture package"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = []

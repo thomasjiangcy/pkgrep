@@ -1,0 +1,9 @@
+[metadata]
+lock_version = "4.5.0"
+content_hash = "sha256:fixture"
+
+[[package]]
+name = "requests"
+version = "2.32.3"
+summary = "Fixture package"
+files = []
