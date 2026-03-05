@@ -6,6 +6,7 @@ use anyhow::Context;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use crate::depspec::{self, Ecosystem};
 use crate::source::{GitPullTarget, MaterializedSource};
 
 const PROJECT_MANIFEST_SCHEMA_VERSION: u8 = 1;
@@ -26,6 +27,43 @@ pub struct ReconcileGlobalIndexResult {
     pub live_mirror_refs: BTreeSet<MirrorRef>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RegistrySpecEcosystem {
+    Npm,
+    Pypi,
+}
+
+impl RegistrySpecEcosystem {
+    pub fn from_depspec_ecosystem(ecosystem: &Ecosystem) -> Option<Self> {
+        match ecosystem {
+            Ecosystem::Npm => Some(Self::Npm),
+            Ecosystem::Pypi => Some(Self::Pypi),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct RegistrySpecRef {
+    pub ecosystem: RegistrySpecEcosystem,
+    pub name: String,
+    #[serde(default)]
+    pub package_version: Option<String>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct LinkRecordMetadata {
+    pub aliases: BTreeSet<String>,
+    pub registry_refs: BTreeSet<RegistrySpecRef>,
+}
+
+#[derive(Clone, Debug)]
+pub struct RegistryLinkMatch {
+    pub dep_spec: String,
+    pub link_path: PathBuf,
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 struct ProjectManifest {
     schema_version: u8,
@@ -36,6 +74,10 @@ struct ProjectManifest {
 struct ProjectManifestEntry {
     link_path: String,
     cache_key: String,
+    #[serde(default)]
+    aliases: BTreeSet<String>,
+    #[serde(default)]
+    registry_refs: BTreeSet<RegistrySpecRef>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -112,22 +154,40 @@ pub fn reconcile_global_index(cache_root: &Path) -> anyhow::Result<ReconcileGlob
     })
 }
 
-pub fn record_link(
+pub fn record_link_with_metadata(
     cwd: &Path,
     cache_root: &Path,
     target: &GitPullTarget,
     materialized: &MaterializedSource,
+    metadata: &LinkRecordMetadata,
 ) -> anyhow::Result<()> {
     let dep_spec = dep_spec(target);
     let project_root = normalize_project_root(cwd);
     let link_path = path_for_manifest(cwd, &materialized.project_link_path);
 
     update_project_manifest(cwd, |manifest| {
+        let mut aliases = metadata.aliases.clone();
+        aliases.insert(dep_spec.clone());
+
+        let mut registry_refs = metadata.registry_refs.clone();
+        if let Some(inferred_registry_ref) =
+            infer_registry_ref_from_cache_key(&materialized.cache_key)
+        {
+            registry_refs.insert(inferred_registry_ref);
+        }
+
+        if let Some(existing_entry) = manifest.entries.get(&dep_spec) {
+            aliases.extend(existing_entry.aliases.iter().cloned());
+            registry_refs.extend(existing_entry.registry_refs.iter().cloned());
+        }
+
         manifest.entries.insert(
             dep_spec.clone(),
             ProjectManifestEntry {
                 link_path,
                 cache_key: materialized.cache_key.clone(),
+                aliases,
+                registry_refs,
             },
         );
     })?;
@@ -147,6 +207,54 @@ pub fn record_link(
     })?;
 
     Ok(())
+}
+
+pub fn find_registry_link_matches(
+    cwd: &Path,
+    original_dep_spec: &str,
+    ecosystem: &Ecosystem,
+    locator: &str,
+    version: Option<&str>,
+) -> anyhow::Result<Vec<RegistryLinkMatch>> {
+    let Some(registry_ecosystem) = RegistrySpecEcosystem::from_depspec_ecosystem(ecosystem) else {
+        return Ok(Vec::new());
+    };
+
+    let path = project_manifest_path(cwd);
+    let mut manifest: ProjectManifest = read_json_or_default(&path)?;
+    ensure_project_manifest_defaults(&mut manifest);
+
+    let mut matches = Vec::new();
+    for (dep_spec, entry) in manifest.entries {
+        let alias_match = entry.aliases.contains(original_dep_spec);
+        let registry_ref_match = entry.registry_refs.iter().any(|ref_spec| {
+            if ref_spec.ecosystem != registry_ecosystem || ref_spec.name != locator {
+                return false;
+            }
+
+            match version {
+                Some(version) => ref_spec.package_version.as_deref() == Some(version),
+                None => true,
+            }
+        });
+
+        if !alias_match && !registry_ref_match {
+            continue;
+        }
+
+        let absolute_link_path = cwd.join(&entry.link_path);
+        if !absolute_link_path.exists() {
+            continue;
+        }
+
+        matches.push(RegistryLinkMatch {
+            dep_spec,
+            link_path: absolute_link_path,
+        });
+    }
+
+    matches.sort_by(|lhs, rhs| lhs.dep_spec.cmp(&rhs.dep_spec));
+    Ok(matches)
 }
 
 pub fn record_unlink(
@@ -285,6 +393,51 @@ fn mirror_ref_from_cache_key(cache_key: &str) -> Option<MirrorRef> {
     })
 }
 
+fn infer_registry_ref_from_cache_key(cache_key: &str) -> Option<RegistrySpecRef> {
+    let mut parts = cache_key.split('/');
+    let ecosystem_label = parts.next()?.trim();
+    let normalized_locator = parts.next()?.trim();
+    let requested_revision = parts.next()?.trim();
+
+    if normalized_locator.is_empty() {
+        return None;
+    }
+
+    let ecosystem = match ecosystem_label {
+        "npm" => RegistrySpecEcosystem::Npm,
+        "pypi" => RegistrySpecEcosystem::Pypi,
+        _ => return None,
+    };
+
+    let locator = depspec::denormalize_locator(normalized_locator)?;
+    if looks_like_git_locator(&locator) {
+        return None;
+    }
+
+    let package_version = match ecosystem {
+        RegistrySpecEcosystem::Npm => None,
+        RegistrySpecEcosystem::Pypi => {
+            if requested_revision.is_empty() {
+                None
+            } else {
+                Some(requested_revision.to_string())
+            }
+        }
+    };
+
+    Some(RegistrySpecRef {
+        ecosystem,
+        name: locator,
+        package_version,
+    })
+}
+
+fn looks_like_git_locator(locator: &str) -> bool {
+    locator.contains("://")
+        || locator.starts_with("git@")
+        || (locator.contains('/') && locator.ends_with(".git"))
+}
+
 fn project_references_cache_key(
     project_root: &str,
     cache_key: &str,
@@ -306,7 +459,8 @@ fn load_project_cache_keys(project_root: &Path) -> Option<BTreeSet<String>> {
     }
 
     let bytes = fs::read(&path).ok()?;
-    let manifest = serde_json::from_slice::<ProjectManifest>(&bytes).ok()?;
+    let mut manifest = serde_json::from_slice::<ProjectManifest>(&bytes).ok()?;
+    ensure_project_manifest_defaults(&mut manifest);
 
     Some(
         manifest
@@ -320,6 +474,18 @@ fn load_project_cache_keys(project_root: &Path) -> Option<BTreeSet<String>> {
 fn ensure_project_manifest_defaults(manifest: &mut ProjectManifest) {
     if manifest.schema_version == 0 {
         manifest.schema_version = PROJECT_MANIFEST_SCHEMA_VERSION;
+    }
+
+    for (dep_spec, entry) in &mut manifest.entries {
+        if entry.aliases.is_empty() {
+            entry.aliases.insert(dep_spec.clone());
+        }
+
+        if entry.registry_refs.is_empty()
+            && let Some(inferred_registry_ref) = infer_registry_ref_from_cache_key(&entry.cache_key)
+        {
+            entry.registry_refs.insert(inferred_registry_ref);
+        }
     }
 }
 

@@ -53,7 +53,8 @@ pub(super) fn run_cache_hydrate(
             let mut already_present_count = 0usize;
             let mut not_found_count = 0usize;
             let total_targets = resolved.targets.len();
-            for (index, target) in resolved.targets.iter().enumerate() {
+            for (index, target_resolution) in resolved.targets.iter().enumerate() {
+                let target = &target_resolution.target;
                 println!(
                     "[{}/{}] hydrate {}@{}",
                     index + 1,
@@ -72,9 +73,17 @@ pub(super) fn run_cache_hydrate(
                     })? {
                     remote_cache::HydrateOutcome::Hydrated(materialized) => {
                         hydrated_count += 1;
-                        if let Err(err) =
-                            index::record_link(cwd, &cache_root, target, &materialized)
-                        {
+                        let metadata = index::LinkRecordMetadata {
+                            aliases: target_resolution.aliases.clone(),
+                            registry_refs: target_resolution.registry_refs.clone(),
+                        };
+                        if let Err(err) = index::record_link_with_metadata(
+                            cwd,
+                            &cache_root,
+                            target,
+                            &materialized,
+                            &metadata,
+                        ) {
                             warn!(
                                 git_url = %target.git_url,
                                 requested_revision = %target.requested_revision,
@@ -97,9 +106,17 @@ pub(super) fn run_cache_hydrate(
                     }
                     remote_cache::HydrateOutcome::AlreadyPresent(materialized) => {
                         already_present_count += 1;
-                        if let Err(err) =
-                            index::record_link(cwd, &cache_root, target, &materialized)
-                        {
+                        let metadata = index::LinkRecordMetadata {
+                            aliases: target_resolution.aliases.clone(),
+                            registry_refs: target_resolution.registry_refs.clone(),
+                        };
+                        if let Err(err) = index::record_link_with_metadata(
+                            cwd,
+                            &cache_root,
+                            target,
+                            &materialized,
+                            &metadata,
+                        ) {
                             warn!(
                                 git_url = %target.git_url,
                                 requested_revision = %target.requested_revision,

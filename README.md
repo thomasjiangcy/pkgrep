@@ -161,6 +161,8 @@ pkgrep pull
 
 # Resolve the linked project path for a dep
 pkgrep path git:https://github.com/facebook/react.git@v18.3.1
+pkgrep path npm:react@18.3.1
+pkgrep path pypi:requests@2.32.3
 
 # Remove project links (requires --yes)
 pkgrep remove git:https://github.com/facebook/react.git@v18.3.1 --yes
@@ -188,7 +190,11 @@ Current behavior:
   - npm package specs (`npm:<name>` / `npm:<name>@<version>`) resolved via npm metadata
   - pypi package specs (`pypi:<name>` / `pypi:<name>@<version>`) resolved via PyPI metadata
   - shorthand package specs (`<name>` / `<name>@<version>`) when exactly one supported ecosystem is inferred from project lockfiles in cwd
-- `path` currently supports git-backed specs and returns the linked project path when present.
+- `path` supports:
+  - git-backed specs (`git:<url>@<revision>` / `git:<url>#<revision>`)
+  - npm/pypi package specs when matching links exist in project manifest metadata
+  - versionless npm/pypi specs (`npm:<name>`, `pypi:<name>`) only when exactly one linked match exists
+  - for legacy manifest entries without package-version metadata, versioned npm/pypi lookups may require re-running `pkgrep pull <spec>` to backfill metadata
 - Git dep specs accept both `git:<url>@<revision>` and `git:<url>#<revision>`.
 - Project links are human-readable under `.pkgrep/deps/...`; internal cache keys remain normalized for safety/determinism.
 - With remote backend configured, `pull` attempts remote hydrate first; if missing, it fetches from Git and then publishes to remote cache.

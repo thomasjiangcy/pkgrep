@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use anyhow::Context;
@@ -13,8 +13,15 @@ use crate::remote_cache;
 use crate::source;
 
 #[derive(Clone, Debug)]
+pub(super) struct PullTargetResolution {
+    pub target: source::GitPullTarget,
+    pub aliases: BTreeSet<String>,
+    pub registry_refs: BTreeSet<index::RegistrySpecRef>,
+}
+
+#[derive(Clone, Debug)]
 pub(super) struct PullResolution {
-    pub targets: Vec<source::GitPullTarget>,
+    pub targets: Vec<PullTargetResolution>,
     pub discovered_lockfiles: usize,
     pub discovered_dependencies: usize,
     pub skipped_non_git_dependencies: usize,
@@ -68,18 +75,21 @@ pub(super) fn run_pull(cwd: &Path, config: &Config, dep_specs: Vec<String>) -> a
     }
 
     if let Some(first) = resolved.targets.first() {
-        let version_for_key = first.requested_revision.as_str();
+        let version_for_key = first.target.requested_revision.as_str();
         let preview_cache_key = depspec::cache_key(
-            &first.ecosystem,
-            &first.locator,
+            &first.target.ecosystem,
+            &first.target.locator,
             version_for_key,
             "source-fingerprint-pending",
         );
-        let preview_link_path =
-            depspec::link_path(&first.ecosystem, &first.locator, version_for_key);
+        let preview_link_path = depspec::link_path(
+            &first.target.ecosystem,
+            &first.target.locator,
+            version_for_key,
+        );
         info!(
-            first_dep_ecosystem = first.ecosystem.as_str(),
-            first_dep_locator = %first.locator,
+            first_dep_ecosystem = first.target.ecosystem.as_str(),
+            first_dep_locator = %first.target.locator,
             first_dep_version = version_for_key,
             first_dep_cache_key_preview = %preview_cache_key,
             first_dep_link_path_preview = %preview_link_path.display(),
@@ -105,7 +115,8 @@ pub(super) fn run_pull(cwd: &Path, config: &Config, dep_specs: Vec<String>) -> a
     let mut published_to_remote = 0usize;
     let total_targets = resolved.targets.len();
 
-    for (index, target) in resolved.targets.iter().enumerate() {
+    for (index, target_resolution) in resolved.targets.iter().enumerate() {
+        let target = &target_resolution.target;
         println!(
             "[{}/{}] pull {}@{}",
             index + 1,
@@ -185,7 +196,18 @@ pub(super) fn run_pull(cwd: &Path, config: &Config, dep_specs: Vec<String>) -> a
             materialized
         };
 
-        if let Err(err) = index::record_link(cwd, &cache_root, target, &materialized) {
+        let link_metadata = index::LinkRecordMetadata {
+            aliases: target_resolution.aliases.clone(),
+            registry_refs: target_resolution.registry_refs.clone(),
+        };
+
+        if let Err(err) = index::record_link_with_metadata(
+            cwd,
+            &cache_root,
+            target,
+            &materialized,
+            &link_metadata,
+        ) {
             warn!(
                 git_url = %target.git_url,
                 requested_revision = %target.requested_revision,
@@ -221,22 +243,29 @@ pub(super) fn run_pull(cwd: &Path, config: &Config, dep_specs: Vec<String>) -> a
 fn resolve_pull_targets_from_specs(
     cwd: &Path,
     dep_specs: &[String],
-) -> anyhow::Result<Vec<source::GitPullTarget>> {
+) -> anyhow::Result<Vec<PullTargetResolution>> {
     let normalized_specs = normalize_explicit_dep_specs_for_pull(cwd, dep_specs)?;
     let parsed_specs = super::parse_dep_specs(&normalized_specs)?;
     let mut targets = Vec::new();
 
-    for spec in parsed_specs {
+    for (original_spec, spec) in normalized_specs.into_iter().zip(parsed_specs.into_iter()) {
         match spec.source_kind {
             SourceKind::Git {
                 url,
                 requested_revision,
             } => {
-                targets.push(source::GitPullTarget {
-                    ecosystem: spec.ecosystem,
-                    locator: url.clone(),
-                    git_url: url,
-                    requested_revision,
+                let mut aliases = BTreeSet::new();
+                aliases.insert(original_spec);
+
+                targets.push(PullTargetResolution {
+                    target: source::GitPullTarget {
+                        ecosystem: spec.ecosystem,
+                        locator: url.clone(),
+                        git_url: url,
+                        requested_revision,
+                    },
+                    aliases,
+                    registry_refs: BTreeSet::new(),
                 });
             }
             SourceKind::Registry => {
@@ -254,7 +283,35 @@ fn resolve_pull_targets_from_specs(
                     resolved.target.requested_revision,
                     resolved.package_version
                 );
-                targets.push(resolved.target);
+
+                let mut aliases = BTreeSet::new();
+                aliases.insert(original_spec);
+                aliases.insert(format!(
+                    "{}:{}",
+                    resolved.target.ecosystem.as_str(),
+                    resolved.target.locator
+                ));
+                aliases.insert(format!(
+                    "{}:{}@{}",
+                    resolved.target.ecosystem.as_str(),
+                    resolved.target.locator,
+                    resolved.package_version
+                ));
+
+                let mut registry_refs = BTreeSet::new();
+                if let Some(registry_ref) = registry_ref(
+                    &resolved.target.ecosystem,
+                    &resolved.target.locator,
+                    Some(resolved.package_version.clone()),
+                ) {
+                    registry_refs.insert(registry_ref);
+                }
+
+                targets.push(PullTargetResolution {
+                    target: resolved.target,
+                    aliases,
+                    registry_refs,
+                });
             }
         }
     }
@@ -366,11 +423,32 @@ fn resolve_pull_targets_from_project(cwd: &Path) -> anyhow::Result<PullResolutio
                 continue;
             };
 
-            targets.push(source::GitPullTarget {
-                ecosystem: ecosystem_from_provider(&dep.ecosystem),
-                locator: git_hint.url.clone(),
-                git_url: git_hint.url,
-                requested_revision: git_hint.requested_revision,
+            let ecosystem = ecosystem_from_provider(&dep.ecosystem);
+            let mut aliases = BTreeSet::new();
+            aliases.insert(format!("{}:{}", ecosystem.as_str(), dep.name));
+            aliases.insert(format!(
+                "{}:{}@{}",
+                ecosystem.as_str(),
+                dep.name,
+                dep.version
+            ));
+
+            let mut registry_refs = BTreeSet::new();
+            if let Some(registry_ref) =
+                registry_ref(&ecosystem, &dep.name, Some(dep.version.clone()))
+            {
+                registry_refs.insert(registry_ref);
+            }
+
+            targets.push(PullTargetResolution {
+                target: source::GitPullTarget {
+                    ecosystem,
+                    locator: git_hint.url.clone(),
+                    git_url: git_hint.url,
+                    requested_revision: git_hint.requested_revision,
+                },
+                aliases,
+                registry_refs,
             });
         }
     }
@@ -383,23 +461,44 @@ fn resolve_pull_targets_from_project(cwd: &Path) -> anyhow::Result<PullResolutio
     })
 }
 
-fn deduplicate_pull_targets(targets: Vec<source::GitPullTarget>) -> Vec<source::GitPullTarget> {
-    let mut seen = BTreeSet::new();
-    let mut deduped = Vec::new();
+fn deduplicate_pull_targets(targets: Vec<PullTargetResolution>) -> Vec<PullTargetResolution> {
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
+    let mut deduped: Vec<PullTargetResolution> = Vec::new();
 
     for target in targets {
         let key = format!(
             "{}||{}||{}",
-            target.ecosystem.as_str(),
-            target.git_url,
-            target.requested_revision
+            target.target.ecosystem.as_str(),
+            target.target.git_url,
+            target.target.requested_revision
         );
-        if seen.insert(key) {
-            deduped.push(target);
+
+        if let Some(existing_index) = seen.get(&key).copied() {
+            if let Some(existing_target) = deduped.get_mut(existing_index) {
+                existing_target.aliases.extend(target.aliases);
+                existing_target.registry_refs.extend(target.registry_refs);
+            }
+            continue;
         }
+
+        seen.insert(key, deduped.len());
+        deduped.push(target);
     }
 
     deduped
+}
+
+fn registry_ref(
+    ecosystem: &Ecosystem,
+    name: &str,
+    package_version: Option<String>,
+) -> Option<index::RegistrySpecRef> {
+    let ecosystem = index::RegistrySpecEcosystem::from_depspec_ecosystem(ecosystem)?;
+    Some(index::RegistrySpecRef {
+        ecosystem,
+        name: name.to_string(),
+        package_version,
+    })
 }
 
 fn ecosystem_from_provider(ecosystem: &providers::ProviderEcosystem) -> Ecosystem {
