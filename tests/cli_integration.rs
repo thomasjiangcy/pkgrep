@@ -465,6 +465,144 @@ fn path_fails_when_dep_is_not_linked() {
 }
 
 #[test]
+fn path_returns_registry_link_when_present() {
+    let temp = TempDir::new().expect("tempdir");
+    let link_relative = ".pkgrep/deps/npm/react@deadbeef";
+    let link_path = temp.path().join(link_relative);
+    std::fs::create_dir_all(&link_path).expect("create linked path");
+
+    let manifest_path = temp.path().join(".pkgrep").join("manifest.json");
+    std::fs::create_dir_all(
+        manifest_path
+            .parent()
+            .expect("manifest parent directory should exist"),
+    )
+    .expect("create manifest parent");
+    let manifest = json!({
+        "schema_version": 1,
+        "entries": {
+            "git:https://github.com/facebook/react.git@deadbeef": {
+                "link_path": link_relative,
+                "cache_key": "npm/b64_cmVhY3Q/deadbeef/fingerprint",
+                "aliases": ["npm:react", "npm:react@18.3.1"],
+                "registry_refs": [{
+                    "ecosystem": "npm",
+                    "name": "react",
+                    "package_version": "18.3.1"
+                }]
+            }
+        }
+    });
+    std::fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&manifest).expect("serialize manifest"),
+    )
+    .expect("write manifest");
+
+    let expected = link_path.display().to_string();
+    cmd_in_temp(&temp)
+        .args(["path", "npm:react@18.3.1"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(expected));
+}
+
+#[test]
+fn path_registry_fails_when_multiple_links_match() {
+    let temp = TempDir::new().expect("tempdir");
+
+    let link_one_relative = ".pkgrep/deps/npm/react@deadbeef";
+    let link_two_relative = ".pkgrep/deps/npm/react@cafebabe";
+    std::fs::create_dir_all(temp.path().join(link_one_relative)).expect("create first linked path");
+    std::fs::create_dir_all(temp.path().join(link_two_relative))
+        .expect("create second linked path");
+
+    let manifest_path = temp.path().join(".pkgrep").join("manifest.json");
+    std::fs::create_dir_all(
+        manifest_path
+            .parent()
+            .expect("manifest parent directory should exist"),
+    )
+    .expect("create manifest parent");
+    let manifest = json!({
+        "schema_version": 1,
+        "entries": {
+            "git:https://github.com/facebook/react.git@deadbeef": {
+                "link_path": link_one_relative,
+                "cache_key": "npm/b64_cmVhY3Q/deadbeef/fingerprint-a",
+                "aliases": ["npm:react@18.3.1"],
+                "registry_refs": [{
+                    "ecosystem": "npm",
+                    "name": "react",
+                    "package_version": "18.3.1"
+                }]
+            },
+            "git:https://github.com/facebook/react.git@cafebabe": {
+                "link_path": link_two_relative,
+                "cache_key": "npm/b64_cmVhY3Q/cafebabe/fingerprint-b",
+                "aliases": ["npm:react@19.0.0"],
+                "registry_refs": [{
+                    "ecosystem": "npm",
+                    "name": "react",
+                    "package_version": "19.0.0"
+                }]
+            }
+        }
+    });
+    std::fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&manifest).expect("serialize manifest"),
+    )
+    .expect("write manifest");
+
+    cmd_in_temp(&temp)
+        .args(["path", "npm:react"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "multiple linked dependencies match 'npm:react'",
+        ));
+}
+
+#[test]
+fn path_registry_versioned_can_require_backfill_for_legacy_manifest_entries() {
+    let temp = TempDir::new().expect("tempdir");
+    let link_relative = ".pkgrep/deps/npm/react@deadbeef";
+    let link_path = temp.path().join(link_relative);
+    std::fs::create_dir_all(&link_path).expect("create linked path");
+
+    let manifest_path = temp.path().join(".pkgrep").join("manifest.json");
+    std::fs::create_dir_all(
+        manifest_path
+            .parent()
+            .expect("manifest parent directory should exist"),
+    )
+    .expect("create manifest parent");
+    let manifest = json!({
+        "schema_version": 1,
+        "entries": {
+            "git:https://github.com/facebook/react.git@deadbeef": {
+                "link_path": link_relative,
+                "cache_key": "npm/b64_cmVhY3Q/deadbeef/fingerprint"
+            }
+        }
+    });
+    std::fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&manifest).expect("serialize manifest"),
+    )
+    .expect("write manifest");
+
+    cmd_in_temp(&temp)
+        .args(["path", "npm:react@18.3.1"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "re-run 'pkgrep pull npm:react@18.3.1'",
+        ));
+}
+
+#[test]
 fn pull_and_remove_update_project_and_global_indexes() {
     let temp = TempDir::new().expect("tempdir");
     let repo_path = temp.path().join("source-repo");
