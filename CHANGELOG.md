@@ -7,6 +7,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-03-05
+
+### 🚀 Features
+
+- *(path)* Support npm/pypi lookups via manifest metadata (#13)
+
 ## [0.3.1] - 2026-02-24
 
 ### Fixed
@@ -53,7 +59,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Git-only source retrieval pipeline with npm/PyPI dependency resolution mapped to upstream git repos.
 - Remote cache support via object stores (`s3`, `azure_blob`) with hydrate/publish flow.
 
-[Unreleased]: https://github.com/thomasjiangcy/pkgrep/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/thomasjiangcy/pkgrep/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/thomasjiangcy/pkgrep/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.1.0...v0.2.0
