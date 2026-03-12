@@ -14,10 +14,10 @@ const YARN_LOCK: &str = "yarn.lock";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProviderKind {
-    NpmPackageLock,
-    NpmPnpmLock,
-    PythonUvLock,
-    NpmYarnLock,
+    Package,
+    Pnpm,
+    Uv,
+    Yarn,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -80,7 +80,7 @@ pub fn detect_supported_project_files(project_root: &Path) -> Vec<ProviderInputM
     let package_lock = project_root.join(PACKAGE_LOCK);
     if package_lock.exists() {
         matches.push(ProviderInputMatch {
-            provider: ProviderKind::NpmPackageLock,
+            provider: ProviderKind::Package,
             path: package_lock,
         });
     }
@@ -88,7 +88,7 @@ pub fn detect_supported_project_files(project_root: &Path) -> Vec<ProviderInputM
     let pnpm_lock = project_root.join(PNPM_LOCK);
     if pnpm_lock.exists() {
         matches.push(ProviderInputMatch {
-            provider: ProviderKind::NpmPnpmLock,
+            provider: ProviderKind::Pnpm,
             path: pnpm_lock,
         });
     }
@@ -96,7 +96,7 @@ pub fn detect_supported_project_files(project_root: &Path) -> Vec<ProviderInputM
     let uv_lock = project_root.join(UV_LOCK);
     if uv_lock.exists() {
         matches.push(ProviderInputMatch {
-            provider: ProviderKind::PythonUvLock,
+            provider: ProviderKind::Uv,
             path: uv_lock,
         });
     }
@@ -104,7 +104,7 @@ pub fn detect_supported_project_files(project_root: &Path) -> Vec<ProviderInputM
     let yarn_lock = project_root.join(YARN_LOCK);
     if yarn_lock.exists() {
         matches.push(ProviderInputMatch {
-            provider: ProviderKind::NpmYarnLock,
+            provider: ProviderKind::Yarn,
             path: yarn_lock,
         });
     }
@@ -116,10 +116,10 @@ pub fn parse_provider_input(
     input: &ProviderInputMatch,
 ) -> Result<Vec<NormalizedDependency>, ProviderError> {
     match input.provider {
-        ProviderKind::NpmPackageLock => npm_package_lock::parse(&input.path),
-        ProviderKind::NpmPnpmLock => pnpm_lock::parse(&input.path),
-        ProviderKind::PythonUvLock => python_uv_lock::parse(&input.path),
-        ProviderKind::NpmYarnLock => yarn_lock::parse(&input.path),
+        ProviderKind::Package => npm_package_lock::parse(&input.path),
+        ProviderKind::Pnpm => pnpm_lock::parse(&input.path),
+        ProviderKind::Uv => python_uv_lock::parse(&input.path),
+        ProviderKind::Yarn => yarn_lock::parse(&input.path),
     }
 }
 
@@ -137,7 +137,7 @@ mod tests {
     fn parses_package_lock_fixture() {
         let path = fixture("fixtures/js/package-lock.json");
         let input = ProviderInputMatch {
-            provider: ProviderKind::NpmPackageLock,
+            provider: ProviderKind::Package,
             path,
         };
 
@@ -161,7 +161,7 @@ mod tests {
     fn parses_pnpm_lock_fixture() {
         let path = fixture("fixtures/js/pnpm-lock.yaml");
         let input = ProviderInputMatch {
-            provider: ProviderKind::NpmPnpmLock,
+            provider: ProviderKind::Pnpm,
             path,
         };
 
@@ -185,7 +185,7 @@ mod tests {
     fn parses_uv_lock_fixture() {
         let path = fixture("fixtures/python/uv.lock");
         let input = ProviderInputMatch {
-            provider: ProviderKind::PythonUvLock,
+            provider: ProviderKind::Uv,
             path,
         };
 
@@ -201,7 +201,7 @@ mod tests {
     fn parses_yarn_lock_fixture() {
         let path = fixture("fixtures/js/yarn.lock");
         let input = ProviderInputMatch {
-            provider: ProviderKind::NpmYarnLock,
+            provider: ProviderKind::Yarn,
             path,
         };
 
@@ -234,22 +234,22 @@ mod tests {
         assert!(
             detected
                 .iter()
-                .any(|m| matches!(m.provider, ProviderKind::NpmPackageLock))
+                .any(|m| matches!(m.provider, ProviderKind::Package))
         );
         assert!(
             detected
                 .iter()
-                .any(|m| matches!(m.provider, ProviderKind::NpmPnpmLock))
+                .any(|m| matches!(m.provider, ProviderKind::Pnpm))
         );
         assert!(
             detected
                 .iter()
-                .any(|m| matches!(m.provider, ProviderKind::PythonUvLock))
+                .any(|m| matches!(m.provider, ProviderKind::Uv))
         );
         assert!(
             detected
                 .iter()
-                .any(|m| matches!(m.provider, ProviderKind::NpmYarnLock))
+                .any(|m| matches!(m.provider, ProviderKind::Yarn))
         );
     }
 }

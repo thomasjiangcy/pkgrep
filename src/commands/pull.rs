@@ -510,10 +510,10 @@ fn ecosystem_from_provider(ecosystem: &providers::ProviderEcosystem) -> Ecosyste
 
 fn ecosystem_from_provider_kind(kind: &providers::ProviderKind) -> &'static str {
     match kind {
-        providers::ProviderKind::NpmPackageLock
-        | providers::ProviderKind::NpmPnpmLock
-        | providers::ProviderKind::NpmYarnLock => "npm",
-        providers::ProviderKind::PythonUvLock => "pypi",
+        providers::ProviderKind::Package
+        | providers::ProviderKind::Pnpm
+        | providers::ProviderKind::Yarn => "npm",
+        providers::ProviderKind::Uv => "pypi",
     }
 }
 
