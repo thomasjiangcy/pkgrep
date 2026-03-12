@@ -304,6 +304,24 @@ fn resolve_pull_targets_from_specs(
                         );
                     }
                 }
+                if spec.ecosystem == Ecosystem::Pypi && spec.version.is_none() {
+                    if let Some(detected) =
+                        installed_version::detect_installed_pypi_version(cwd, &spec.locator)?
+                    {
+                        println!(
+                            "detected installed pypi version for {}: {} (from {})",
+                            spec.locator,
+                            detected.version,
+                            detected.source.as_str()
+                        );
+                        spec.version = Some(detected.version);
+                    } else {
+                        println!(
+                            "no installed pypi version detected for {}; falling back to registry latest",
+                            spec.locator
+                        );
+                    }
+                }
 
                 let spec_label = match &spec.version {
                     Some(version) => {

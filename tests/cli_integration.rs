@@ -438,6 +438,85 @@ fn pull_shorthand_infers_pypi_with_single_python_lockfile() {
 }
 
 #[test]
+fn pull_explicit_pypi_without_version_prefers_uv_lock_version() {
+    let temp = TempDir::new().expect("tempdir");
+    std::fs::write(
+        temp.path().join("uv.lock"),
+        r#"
+version = 1
+
+[[package]]
+name = "requests"
+version = "2.32.3"
+"#,
+    )
+    .expect("write uv lock");
+
+    cmd_in_temp(&temp)
+        .env("PKGREP_PYPI_REGISTRY_URL", "not-a-url")
+        .args(["pull", "pypi:requests"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "detected installed pypi version for requests: 2.32.3 (from uv.lock)",
+        ))
+        .stdout(predicate::str::contains(
+            "resolving package metadata for pypi:requests@2.32.3",
+        ))
+        .stderr(predicate::str::contains("invalid pypi registry URL"));
+}
+
+#[test]
+fn pull_shorthand_prefers_installed_pypi_version_from_uv_lock() {
+    let temp = TempDir::new().expect("tempdir");
+    std::fs::write(
+        temp.path().join("uv.lock"),
+        r#"
+version = 1
+
+[[package]]
+name = "requests"
+version = "2.32.3"
+"#,
+    )
+    .expect("write uv lock");
+
+    cmd_in_temp(&temp)
+        .env("PKGREP_PYPI_REGISTRY_URL", "not-a-url")
+        .args(["pull", "requests"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "inferred shorthand 'requests' as 'pypi:requests'",
+        ))
+        .stdout(predicate::str::contains(
+            "detected installed pypi version for requests: 2.32.3 (from uv.lock)",
+        ))
+        .stdout(predicate::str::contains(
+            "resolving package metadata for pypi:requests@2.32.3",
+        ))
+        .stderr(predicate::str::contains("invalid pypi registry URL"));
+}
+
+#[test]
+fn pull_explicit_pypi_without_local_version_falls_back_to_registry_latest() {
+    let temp = TempDir::new().expect("tempdir");
+
+    cmd_in_temp(&temp)
+        .env("PKGREP_PYPI_REGISTRY_URL", "not-a-url")
+        .args(["pull", "pypi:requests"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "no installed pypi version detected for requests; falling back to registry latest",
+        ))
+        .stdout(predicate::str::contains(
+            "resolving package metadata for pypi:requests",
+        ))
+        .stderr(predicate::str::contains("invalid pypi registry URL"));
+}
+
+#[test]
 fn pull_shorthand_prefers_installed_npm_version_from_node_modules() {
     let temp = TempDir::new().expect("tempdir");
     std::fs::write(temp.path().join("package-lock.json"), "{}").expect("write package-lock");
