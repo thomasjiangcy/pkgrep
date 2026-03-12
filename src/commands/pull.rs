@@ -510,8 +510,10 @@ fn ecosystem_from_provider(ecosystem: &providers::ProviderEcosystem) -> Ecosyste
 
 fn ecosystem_from_provider_kind(kind: &providers::ProviderKind) -> &'static str {
     match kind {
-        providers::ProviderKind::NpmPackageLock => "npm",
-        providers::ProviderKind::PythonUvLock => "pypi",
+        providers::ProviderKind::Package
+        | providers::ProviderKind::Pnpm
+        | providers::ProviderKind::Yarn => "npm",
+        providers::ProviderKind::Uv => "pypi",
     }
 }
 
@@ -559,6 +561,28 @@ mod tests {
     fn shorthand_inference_rewrites_with_single_ecosystem() {
         let temp = tempfile::tempdir().expect("tempdir");
         std::fs::write(temp.path().join("package-lock.json"), "{}").expect("write package-lock");
+
+        let normalized =
+            normalize_explicit_dep_specs_for_pull(temp.path(), &[String::from("zod@3.23.8")])
+                .expect("normalize shorthand");
+        assert_eq!(normalized, vec![String::from("npm:zod@3.23.8")]);
+    }
+
+    #[test]
+    fn shorthand_inference_rewrites_with_single_pnpm_lockfile() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        std::fs::write(temp.path().join("pnpm-lock.yaml"), "").expect("write pnpm lock");
+
+        let normalized =
+            normalize_explicit_dep_specs_for_pull(temp.path(), &[String::from("zod@3.23.8")])
+                .expect("normalize shorthand");
+        assert_eq!(normalized, vec![String::from("npm:zod@3.23.8")]);
+    }
+
+    #[test]
+    fn shorthand_inference_rewrites_with_single_yarn_lockfile() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        std::fs::write(temp.path().join("yarn.lock"), "").expect("write yarn lock");
 
         let normalized =
             normalize_explicit_dep_specs_for_pull(temp.path(), &[String::from("zod@3.23.8")])

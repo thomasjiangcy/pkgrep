@@ -156,7 +156,7 @@ pkgrep pull 'git:https://github.com/facebook/react.git@eslint-plugin-react-hooks
 pkgrep pull 'git:https://github.com/facebook/react.git#eslint-plugin-react-hooks@5.0.0'
 
 # Pull from project files in current directory
-# (currently auto-detects package-lock.json and uv.lock, and only pulls entries with git source hints)
+# (currently auto-detects package-lock.json, pnpm-lock.yaml, yarn.lock, and uv.lock, and only pulls entries with git source hints)
 pkgrep pull
 
 # Resolve the linked project path for a dep
