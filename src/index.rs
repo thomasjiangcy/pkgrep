@@ -58,6 +58,14 @@ pub struct LinkRecordMetadata {
     pub registry_refs: BTreeSet<RegistrySpecRef>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ProjectLinkSummary {
+    pub dep_spec: String,
+    pub link_path: PathBuf,
+    pub cache_key: String,
+    pub aliases: Vec<String>,
+}
+
 #[derive(Clone, Debug)]
 pub struct LinkMatch {
     pub dep_spec: String,
@@ -288,6 +296,32 @@ pub fn find_git_link_matches(
 
     matches.sort_by(|lhs, rhs| lhs.dep_spec.cmp(&rhs.dep_spec));
     Ok(matches)
+}
+
+pub fn list_project_links(cwd: &Path) -> anyhow::Result<Vec<ProjectLinkSummary>> {
+    let path = project_manifest_path(cwd);
+    let mut manifest: ProjectManifest = read_json_or_default(&path)?;
+    ensure_project_manifest_defaults(&mut manifest);
+
+    let mut summaries = manifest
+        .entries
+        .into_iter()
+        .filter_map(|(dep_spec, entry)| {
+            let link_path = cwd.join(&entry.link_path);
+            if !link_path.exists() {
+                return None;
+            }
+
+            Some(ProjectLinkSummary {
+                dep_spec,
+                link_path,
+                cache_key: entry.cache_key,
+                aliases: entry.aliases.into_iter().collect(),
+            })
+        })
+        .collect::<Vec<_>>();
+    summaries.sort_by(|lhs, rhs| lhs.dep_spec.cmp(&rhs.dep_spec));
+    Ok(summaries)
 }
 
 pub fn record_unlink(

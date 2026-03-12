@@ -604,6 +604,91 @@ fn path_returns_registry_link_when_present() {
 }
 
 #[test]
+fn list_reports_linked_dependencies() {
+    let temp = TempDir::new().expect("tempdir");
+    let link_relative = ".pkgrep/deps/npm/react@deadbeef";
+    let link_path = temp.path().join(link_relative);
+    std::fs::create_dir_all(&link_path).expect("create linked path");
+
+    let manifest_path = temp.path().join(".pkgrep").join("manifest.json");
+    std::fs::create_dir_all(
+        manifest_path
+            .parent()
+            .expect("manifest parent directory should exist"),
+    )
+    .expect("create manifest parent");
+    let manifest = json!({
+        "schema_version": 1,
+        "entries": {
+            "git:https://github.com/facebook/react.git@deadbeef": {
+                "link_path": link_relative,
+                "cache_key": "npm/b64_cmVhY3Q/deadbeef/fingerprint",
+                "aliases": ["npm:react", "npm:react@18.3.1"]
+            }
+        }
+    });
+    std::fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&manifest).expect("serialize manifest"),
+    )
+    .expect("write manifest");
+
+    let expected_link_path = link_path.display().to_string();
+    cmd_in_temp(&temp)
+        .args(["list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "git:https://github.com/facebook/react.git@deadbeef",
+        ))
+        .stdout(predicate::str::contains(expected_link_path));
+}
+
+#[test]
+fn list_json_reports_project_manifest_entries() {
+    let temp = TempDir::new().expect("tempdir");
+    let link_relative = ".pkgrep/deps/npm/react@deadbeef";
+    let link_path = temp.path().join(link_relative);
+    std::fs::create_dir_all(&link_path).expect("create linked path");
+
+    let manifest_path = temp.path().join(".pkgrep").join("manifest.json");
+    std::fs::create_dir_all(
+        manifest_path
+            .parent()
+            .expect("manifest parent directory should exist"),
+    )
+    .expect("create manifest parent");
+    let manifest = json!({
+        "schema_version": 1,
+        "entries": {
+            "git:https://github.com/facebook/react.git@deadbeef": {
+                "link_path": link_relative,
+                "cache_key": "npm/b64_cmVhY3Q/deadbeef/fingerprint",
+                "aliases": ["npm:react", "npm:react@18.3.1"]
+            }
+        }
+    });
+    std::fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&manifest).expect("serialize manifest"),
+    )
+    .expect("write manifest");
+
+    cmd_in_temp(&temp)
+        .args(["list", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"entries\""))
+        .stdout(predicate::str::contains(
+            "\"dep_spec\": \"git:https://github.com/facebook/react.git@deadbeef\"",
+        ))
+        .stdout(predicate::str::contains(
+            "\"cache_key\": \"npm/b64_cmVhY3Q/deadbeef/fingerprint\"",
+        ))
+        .stdout(predicate::str::contains(link_path.display().to_string()));
+}
+
+#[test]
 fn path_registry_fails_when_multiple_links_match() {
     let temp = TempDir::new().expect("tempdir");
 
