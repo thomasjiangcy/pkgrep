@@ -387,12 +387,29 @@ fn pull_without_specs_in_empty_folder_is_noop() {
 #[test]
 fn pull_without_specs_with_non_git_lockfile_entries_is_noop() {
     let temp = TempDir::new().expect("tempdir");
-    let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("fixtures")
-        .join("js")
-        .join("package-lock.json");
-    let lock_path = temp.path().join("package-lock.json");
-    std::fs::copy(&fixture, &lock_path).expect("copy package-lock fixture");
+    let package_lock = json!({
+        "name": "fixture-js-npm",
+        "version": "1.0.0",
+        "lockfileVersion": 3,
+        "packages": {
+            "": {
+                "name": "fixture-js-npm",
+                "version": "1.0.0",
+                "dependencies": {
+                    "react": "18.3.1"
+                }
+            },
+            "node_modules/react": {
+                "version": "18.3.1",
+                "resolved": "https://registry.npmjs.org/react/-/react-18.3.1.tgz"
+            }
+        }
+    });
+    std::fs::write(
+        temp.path().join("package-lock.json"),
+        serde_json::to_vec_pretty(&package_lock).expect("serialize package lock"),
+    )
+    .expect("write package-lock");
 
     cmd_in_temp(&temp)
         .args(["pull"])
@@ -717,6 +734,64 @@ fn pull_without_specs_uses_package_lock_git_hint() {
         serde_json::to_vec_pretty(&package_lock).expect("serialize lock"),
     )
     .expect("write package-lock");
+
+    cmd_in_temp(&temp)
+        .args(["pull"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Pull completed: total=1"));
+
+    let npm_links = temp.path().join(".pkgrep").join("deps").join("npm");
+    let link = first_symlink_entry(&npm_links);
+    let metadata = std::fs::symlink_metadata(&link).expect("link metadata");
+    assert!(metadata.file_type().is_symlink());
+}
+
+#[test]
+fn pull_without_specs_uses_pnpm_lock_git_hint() {
+    let temp = TempDir::new().expect("tempdir");
+    let repo_path = temp.path().join("source-repo");
+    let revision = init_local_git_repo(&repo_path);
+
+    let pnpm_lock = format!(
+        "lockfileVersion: '9.0'\n\nimporters:\n  .:\n    dependencies:\n      demo-git-package:\n        specifier: git+file://{}#{}\n        version: git+file://{}#{}\n\npackages:\n  demo-git-package@git+file://{}#{}:\n    resolution:\n      type: git\n      repo: file://{}\n      commit: {}\n    version: 1.0.0\n",
+        repo_path.display(),
+        revision,
+        repo_path.display(),
+        revision,
+        repo_path.display(),
+        revision,
+        repo_path.display(),
+        revision,
+    );
+    std::fs::write(temp.path().join("pnpm-lock.yaml"), pnpm_lock).expect("write pnpm lock");
+
+    cmd_in_temp(&temp)
+        .args(["pull"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Pull completed: total=1"));
+
+    let npm_links = temp.path().join(".pkgrep").join("deps").join("npm");
+    let link = first_symlink_entry(&npm_links);
+    let metadata = std::fs::symlink_metadata(&link).expect("link metadata");
+    assert!(metadata.file_type().is_symlink());
+}
+
+#[test]
+fn pull_without_specs_uses_yarn_lock_git_hint() {
+    let temp = TempDir::new().expect("tempdir");
+    let repo_path = temp.path().join("source-repo");
+    let revision = init_local_git_repo(&repo_path);
+
+    let yarn_lock = format!(
+        "\"demo-git-package@git+file://{}#{}\":\n  version \"1.0.0\"\n  resolved \"git+file://{}#{}\"\n",
+        repo_path.display(),
+        revision,
+        repo_path.display(),
+        revision,
+    );
+    std::fs::write(temp.path().join("yarn.lock"), yarn_lock).expect("write yarn lock");
 
     cmd_in_temp(&temp)
         .args(["pull"])

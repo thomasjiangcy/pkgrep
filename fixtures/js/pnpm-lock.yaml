@@ -1,7 +1,23 @@
 lockfileVersion: '9.0'
+
 importers:
   .:
     dependencies:
+      demo-git-package:
+        specifier: git+https://example.com/demo-git-package.git#abc123def456
+        version: git+https://example.com/demo-git-package.git#abc123def456
       react:
         specifier: 18.3.1
         version: 18.3.1
+
+packages:
+  demo-git-package@git+https://example.com/demo-git-package.git#abc123def456:
+    resolution:
+      type: git
+      repo: https://example.com/demo-git-package.git
+      commit: abc123def456
+    version: 1.0.0
+  react@18.3.1:
+    resolution:
+      integrity: sha512-placeholder
+    version: 18.3.1

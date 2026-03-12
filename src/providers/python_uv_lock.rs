@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use super::{GitSourceHint, NormalizedDependency, ProviderEcosystem, ProviderError};
+use crate::providers::{GitSourceHint, NormalizedDependency, ProviderEcosystem, ProviderError};
 
 pub(super) fn parse(path: &Path) -> Result<Vec<NormalizedDependency>, ProviderError> {
     let raw = fs::read_to_string(path).map_err(|source| ProviderError::Read {
