@@ -7,6 +7,25 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-03-13
+
+### Added
+
+- `pkgrep list` with optional `--json` output for project-linked dependency inspection.
+- `pkgrep init` for opt-in project setup of `.pkgrep/`, `AGENTS.md`, and the bundled skill.
+- Provider/project detection for `pnpm-lock.yaml`, `yarn.lock`, `uv.lock`, and `Cargo.lock`.
+- `crates:` dependency support, including crates.io resolution and `Cargo.lock` parsing.
+
+### Changed
+
+- Bare git dependency specs now resolve against the remote default branch automatically.
+- Versionless loose pulls now prefer locally detected versions from npm, PyPI (`uv.lock`), and crates (`Cargo.lock`) before falling back to registry latest.
+- Shorthand package inference now covers npm, PyPI, and crates ecosystems when a single supported project lockfile context is present.
+
+### Dependencies
+
+- Updated key tooling/dependencies including `tokio`, `toml`, `tempfile`, and `assert_cmd`, plus the `actions/download-artifact` release workflow action.
+
 ## [0.4.0] - 2026-03-05
 
 ### 🚀 Features
@@ -59,7 +78,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Git-only source retrieval pipeline with npm/PyPI dependency resolution mapped to upstream git repos.
 - Remote cache support via object stores (`s3`, `azure_blob`) with hydrate/publish flow.
 
-[Unreleased]: https://github.com/thomasjiangcy/pkgrep/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/thomasjiangcy/pkgrep/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/thomasjiangcy/pkgrep/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.2.0...v0.3.0
