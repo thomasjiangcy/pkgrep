@@ -4,6 +4,7 @@ mod config;
 mod depspec;
 mod error;
 mod index;
+mod installed_version;
 mod logging;
 mod providers;
 mod registry_resolver;

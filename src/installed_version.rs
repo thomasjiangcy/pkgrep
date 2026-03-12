@@ -1,0 +1,398 @@
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::Path;
+
+use anyhow::Result;
+use serde::Deserialize;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum InstalledVersionSource {
+    NodeModules,
+    PackageLock,
+    PnpmLock,
+    YarnLock,
+    PackageJson,
+}
+
+impl InstalledVersionSource {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::NodeModules => "node_modules",
+            Self::PackageLock => "package-lock.json",
+            Self::PnpmLock => "pnpm-lock.yaml",
+            Self::YarnLock => "yarn.lock",
+            Self::PackageJson => "package.json",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InstalledVersion {
+    pub version: String,
+    pub source: InstalledVersionSource,
+}
+
+#[derive(Debug, Deserialize)]
+struct PackageJson {
+    #[serde(default)]
+    version: Option<String>,
+    #[serde(default)]
+    dependencies: BTreeMap<String, String>,
+    #[serde(default, rename = "devDependencies")]
+    dev_dependencies: BTreeMap<String, String>,
+    #[serde(default, rename = "peerDependencies")]
+    peer_dependencies: BTreeMap<String, String>,
+    #[serde(default, rename = "optionalDependencies")]
+    optional_dependencies: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PackageLock {
+    #[serde(default)]
+    packages: BTreeMap<String, PackageLockPackage>,
+    #[serde(default)]
+    dependencies: BTreeMap<String, PackageLockDependency>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PackageLockPackage {
+    version: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PackageLockDependency {
+    version: String,
+}
+
+pub fn detect_installed_npm_version(
+    cwd: &Path,
+    package_name: &str,
+) -> Result<Option<InstalledVersion>> {
+    Ok(version_from_node_modules(cwd, package_name)
+        .map(|version| InstalledVersion {
+            version,
+            source: InstalledVersionSource::NodeModules,
+        })
+        .or_else(|| {
+            version_from_package_lock(cwd, package_name).map(|version| InstalledVersion {
+                version,
+                source: InstalledVersionSource::PackageLock,
+            })
+        })
+        .or_else(|| {
+            version_from_pnpm_lock(cwd, package_name).map(|version| InstalledVersion {
+                version,
+                source: InstalledVersionSource::PnpmLock,
+            })
+        })
+        .or_else(|| {
+            version_from_yarn_lock(cwd, package_name).map(|version| InstalledVersion {
+                version,
+                source: InstalledVersionSource::YarnLock,
+            })
+        })
+        .or_else(|| {
+            version_from_package_json(cwd, package_name).map(|version| InstalledVersion {
+                version,
+                source: InstalledVersionSource::PackageJson,
+            })
+        }))
+}
+
+fn version_from_node_modules(cwd: &Path, package_name: &str) -> Option<String> {
+    let package_json_path = cwd
+        .join("node_modules")
+        .join(package_name)
+        .join("package.json");
+    let bytes = fs::read(package_json_path).ok()?;
+    let parsed = serde_json::from_slice::<PackageJson>(&bytes).ok()?;
+    parsed.version.filter(|version| !version.trim().is_empty())
+}
+
+fn version_from_package_lock(cwd: &Path, package_name: &str) -> Option<String> {
+    let lock_path = cwd.join("package-lock.json");
+    let bytes = fs::read(lock_path).ok()?;
+    let parsed = serde_json::from_slice::<PackageLock>(&bytes).ok()?;
+    let package_key = format!("node_modules/{package_name}");
+    parsed
+        .packages
+        .get(&package_key)
+        .and_then(|entry| entry.version.clone())
+        .or_else(|| {
+            parsed
+                .dependencies
+                .get(package_name)
+                .map(|entry| entry.version.clone())
+        })
+}
+
+fn version_from_pnpm_lock(cwd: &Path, package_name: &str) -> Option<String> {
+    let lock_path = cwd.join("pnpm-lock.yaml");
+    let content = fs::read_to_string(lock_path).ok()?;
+    let prefixes = [
+        format!("{package_name}@"),
+        format!("'{package_name}@"),
+        format!("\"{package_name}@"),
+    ];
+    for prefix in prefixes {
+        if let Some(idx) = content.find(&prefix) {
+            let rest = &content[idx + prefix.len()..];
+            let version = rest
+                .chars()
+                .take_while(|ch| {
+                    !matches!(ch, '(' | ')' | ':' | '\'' | '"' | ' ' | '\n' | '\r' | '\t')
+                })
+                .collect::<String>();
+            if !version.is_empty() {
+                return Some(version);
+            }
+        }
+    }
+    None
+}
+
+fn version_from_yarn_lock(cwd: &Path, package_name: &str) -> Option<String> {
+    let lock_path = cwd.join("yarn.lock");
+    let content = fs::read_to_string(lock_path).ok()?;
+    let prefixes = [format!("\"{package_name}@"), format!("{package_name}@")];
+    let mut lines = content.lines().peekable();
+
+    while let Some(line) = lines.next() {
+        if !prefixes.iter().any(|prefix| line.starts_with(prefix)) {
+            continue;
+        }
+
+        while let Some(following_line) = lines.peek().copied() {
+            let trimmed = following_line.trim();
+            if trimmed.starts_with("version ") {
+                let version = trimmed
+                    .trim_start_matches("version ")
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string();
+                if !version.is_empty() {
+                    return Some(version);
+                }
+            }
+
+            if !following_line.starts_with(' ') && !following_line.starts_with('\t') {
+                break;
+            }
+
+            lines.next();
+        }
+    }
+
+    None
+}
+
+fn version_from_package_json(cwd: &Path, package_name: &str) -> Option<String> {
+    let package_json_path = cwd.join("package.json");
+    let bytes = fs::read(package_json_path).ok()?;
+    let parsed = serde_json::from_slice::<PackageJson>(&bytes).ok()?;
+    version_from_package_json_maps(&parsed, package_name)
+}
+
+fn version_from_package_json_maps(parsed: &PackageJson, package_name: &str) -> Option<String> {
+    parsed
+        .dependencies
+        .get(package_name)
+        .or_else(|| parsed.dev_dependencies.get(package_name))
+        .or_else(|| parsed.peer_dependencies.get(package_name))
+        .or_else(|| parsed.optional_dependencies.get(package_name))
+        .and_then(|version| normalize_declared_version(version))
+}
+
+fn normalize_declared_version(version: &str) -> Option<String> {
+    let trimmed = version.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let unsupported_prefixes = [
+        "workspace:",
+        "file:",
+        "link:",
+        "portal:",
+        "patch:",
+        "catalog:",
+        "npm:",
+        "git:",
+        "git+",
+        "http://",
+        "https://",
+    ];
+    if unsupported_prefixes
+        .iter()
+        .any(|prefix| trimmed.starts_with(prefix))
+    {
+        return None;
+    }
+
+    let candidate = trimmed.trim_start_matches(['^', '~', '>', '<', '=']);
+    if looks_like_exact_semver(candidate) {
+        return Some(candidate.to_string());
+    }
+
+    None
+}
+
+fn looks_like_exact_semver(input: &str) -> bool {
+    if input.contains(' ') || input.contains("||") {
+        return false;
+    }
+
+    let normalized = input.strip_prefix('v').unwrap_or(input);
+    let core = normalized
+        .split_once('+')
+        .map(|(version, _)| version)
+        .unwrap_or(normalized);
+    let core = core
+        .split_once('-')
+        .map(|(version, _)| version)
+        .unwrap_or(core);
+
+    let mut parts = core.split('.');
+    let Some(major) = parts.next() else {
+        return false;
+    };
+    let Some(minor) = parts.next() else {
+        return false;
+    };
+    let Some(patch) = parts.next() else {
+        return false;
+    };
+
+    parts.next().is_none()
+        && !major.is_empty()
+        && !minor.is_empty()
+        && !patch.is_empty()
+        && major.chars().all(|ch| ch.is_ascii_digit())
+        && minor.chars().all(|ch| ch.is_ascii_digit())
+        && patch.chars().all(|ch| ch.is_ascii_digit())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::*;
+
+    #[test]
+    fn prefers_node_modules_over_package_json() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let node_modules_pkg = temp
+            .path()
+            .join("node_modules")
+            .join("zod")
+            .join("package.json");
+        fs::create_dir_all(
+            node_modules_pkg
+                .parent()
+                .expect("node_modules package parent exists"),
+        )
+        .expect("create node_modules package dir");
+        fs::write(
+            &node_modules_pkg,
+            r#"{"version":"3.22.4","dependencies":{"zod":"^3.21.0"}}"#,
+        )
+        .expect("write node_modules package.json");
+        fs::write(
+            temp.path().join("package.json"),
+            r#"{"dependencies":{"zod":"^3.21.0"}}"#,
+        )
+        .expect("write package.json");
+
+        let version = detect_installed_npm_version(temp.path(), "zod").expect("detect version");
+        assert_eq!(
+            version.map(|detected| detected.version),
+            Some("3.22.4".to_string())
+        );
+    }
+
+    #[test]
+    fn reads_package_lock_v3_entry() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            temp.path().join("package-lock.json"),
+            r#"{"packages":{"node_modules/zod":{"version":"3.23.8"}}}"#,
+        )
+        .expect("write package lock");
+
+        let version = detect_installed_npm_version(temp.path(), "zod").expect("detect version");
+        assert_eq!(
+            version.map(|detected| detected.version),
+            Some("3.23.8".to_string())
+        );
+    }
+
+    #[test]
+    fn reads_pnpm_lock_entry() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            temp.path().join("pnpm-lock.yaml"),
+            "packages:\n  zod@3.24.1:\n    resolution: {}\n",
+        )
+        .expect("write pnpm lock");
+
+        let version = detect_installed_npm_version(temp.path(), "zod").expect("detect version");
+        assert_eq!(
+            version.map(|detected| detected.version),
+            Some("3.24.1".to_string())
+        );
+    }
+
+    #[test]
+    fn reads_yarn_lock_entry() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            temp.path().join("yarn.lock"),
+            "\"zod@^3.0.0\":\n  version \"3.25.0\"\n",
+        )
+        .expect("write yarn lock");
+
+        let version = detect_installed_npm_version(temp.path(), "zod").expect("detect version");
+        assert_eq!(
+            version.map(|detected| detected.version),
+            Some("3.25.0".to_string())
+        );
+    }
+
+    #[test]
+    fn normalizes_package_json_declared_versions() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            temp.path().join("package.json"),
+            r#"{"dependencies":{"zod":"^3.26.0"},"optionalDependencies":{"chalk":"~5.4.0"}}"#,
+        )
+        .expect("write package.json");
+
+        let zod = detect_installed_npm_version(temp.path(), "zod").expect("detect zod");
+        let chalk = detect_installed_npm_version(temp.path(), "chalk").expect("detect chalk");
+
+        assert_eq!(
+            zod.map(|detected| detected.version),
+            Some("3.26.0".to_string())
+        );
+        assert_eq!(
+            chalk.map(|detected| detected.version),
+            Some("5.4.0".to_string())
+        );
+    }
+
+    #[test]
+    fn ignores_non_exact_package_json_sources() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            temp.path().join("package.json"),
+            r#"{"dependencies":{"zod":"workspace:*","chalk":"github:chalk/chalk"}}"#,
+        )
+        .expect("write package.json");
+
+        let zod = detect_installed_npm_version(temp.path(), "zod").expect("detect zod");
+        let chalk = detect_installed_npm_version(temp.path(), "chalk").expect("detect chalk");
+
+        assert!(zod.is_none());
+        assert!(chalk.is_none());
+    }
+}

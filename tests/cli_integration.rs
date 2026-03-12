@@ -387,6 +387,81 @@ fn pull_shorthand_infers_pypi_with_single_python_lockfile() {
 }
 
 #[test]
+fn pull_shorthand_prefers_installed_npm_version_from_node_modules() {
+    let temp = TempDir::new().expect("tempdir");
+    std::fs::write(temp.path().join("package-lock.json"), "{}").expect("write package-lock");
+    std::fs::create_dir_all(temp.path().join("node_modules").join("zod"))
+        .expect("create node_modules package");
+    std::fs::write(
+        temp.path()
+            .join("node_modules")
+            .join("zod")
+            .join("package.json"),
+        r#"{ "version": "4.0.0" }"#,
+    )
+    .expect("write node_modules package.json");
+
+    cmd_in_temp(&temp)
+        .env("PKGREP_NPM_REGISTRY_URL", "not-a-url")
+        .args(["pull", "zod"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "inferred shorthand 'zod' as 'npm:zod'",
+        ))
+        .stdout(predicate::str::contains(
+            "detected installed npm version for zod: 4.0.0 (from node_modules)",
+        ))
+        .stdout(predicate::str::contains(
+            "resolving package metadata for npm:zod@4.0.0",
+        ))
+        .stderr(predicate::str::contains("invalid npm registry URL"));
+}
+
+#[test]
+fn pull_shorthand_falls_back_to_package_json_declared_version_for_npm() {
+    let temp = TempDir::new().expect("tempdir");
+    std::fs::write(temp.path().join("package-lock.json"), "{}").expect("write package-lock");
+    std::fs::write(
+        temp.path().join("package.json"),
+        r#"{ "dependencies": { "zod": "^3.23.8" } }"#,
+    )
+    .expect("write package.json");
+
+    cmd_in_temp(&temp)
+        .env("PKGREP_NPM_REGISTRY_URL", "not-a-url")
+        .args(["pull", "zod"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "detected installed npm version for zod: 3.23.8 (from package.json)",
+        ))
+        .stdout(predicate::str::contains(
+            "resolving package metadata for npm:zod@3.23.8",
+        ))
+        .stderr(predicate::str::contains("invalid npm registry URL"));
+}
+
+#[test]
+fn pull_shorthand_falls_back_to_registry_latest_when_no_local_npm_version_exists() {
+    let temp = TempDir::new().expect("tempdir");
+    std::fs::write(temp.path().join("package-lock.json"), "{}").expect("write package-lock");
+
+    cmd_in_temp(&temp)
+        .env("PKGREP_NPM_REGISTRY_URL", "not-a-url")
+        .args(["pull", "zod"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "no installed npm version detected for zod; falling back to registry latest",
+        ))
+        .stdout(predicate::str::contains(
+            "resolving package metadata for npm:zod",
+        ))
+        .stderr(predicate::str::contains("invalid npm registry URL"));
+}
+
+#[test]
 fn pull_without_specs_in_empty_folder_is_noop() {
     let temp = TempDir::new().expect("tempdir");
     cmd_in_temp(&temp)

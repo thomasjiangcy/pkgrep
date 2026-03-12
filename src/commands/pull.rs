@@ -7,6 +7,7 @@ use tracing::{info, warn};
 use crate::config::Config;
 use crate::depspec::{self, Ecosystem, SourceKind};
 use crate::index;
+use crate::installed_version;
 use crate::providers;
 use crate::registry_resolver;
 use crate::remote_cache;
@@ -284,6 +285,26 @@ fn resolve_pull_targets_from_specs(
                 });
             }
             SourceKind::Registry => {
+                let mut spec = spec;
+                if spec.ecosystem == Ecosystem::Npm && spec.version.is_none() {
+                    if let Some(detected) =
+                        installed_version::detect_installed_npm_version(cwd, &spec.locator)?
+                    {
+                        println!(
+                            "detected installed npm version for {}: {} (from {})",
+                            spec.locator,
+                            detected.version,
+                            detected.source.as_str()
+                        );
+                        spec.version = Some(detected.version);
+                    } else {
+                        println!(
+                            "no installed npm version detected for {}; falling back to registry latest",
+                            spec.locator
+                        );
+                    }
+                }
+
                 let spec_label = match &spec.version {
                     Some(version) => {
                         format!("{}:{}@{}", spec.ecosystem.as_str(), spec.locator, version)
