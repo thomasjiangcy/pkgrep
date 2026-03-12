@@ -120,6 +120,7 @@ pkgrep skill install --force
 `pkgrep` currently exposes these commands:
 
 - `pkgrep pull [dep-spec ...]`
+- `pkgrep list [--json]`
 - `pkgrep path <dep-spec>`
 - `pkgrep remove <dep-spec ...> [--yes]`
 - `pkgrep skill install [--mode project|global] [--target <skills-dir>] [--force]`
@@ -163,6 +164,10 @@ pkgrep pull
 pkgrep path git:https://github.com/facebook/react.git@v18.3.1
 pkgrep path npm:react@18.3.1
 pkgrep path pypi:requests@2.32.3
+
+# List linked deps in the current project
+pkgrep list
+pkgrep list --json
 
 # Remove project links (requires --yes)
 pkgrep remove git:https://github.com/facebook/react.git@v18.3.1 --yes

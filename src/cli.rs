@@ -47,6 +47,13 @@ pub enum Command {
         dep_spec: String,
     },
 
+    /// List linked dependency sources in the current project.
+    List {
+        /// Output the project link manifest as JSON.
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Cache operations.
     Cache {
         #[command(subcommand)]
@@ -166,6 +173,15 @@ mod tests {
             Command::Path { dep_spec } => {
                 assert_eq!(dep_spec, "git:https://example.com/repo.git@v1")
             }
+            _ => panic!("unexpected command"),
+        }
+    }
+
+    #[test]
+    fn parses_list_json_command() {
+        let cli = Cli::try_parse_from(["pkgrep", "list", "--json"]).expect("parse");
+        match cli.command {
+            Command::List { json } => assert!(json),
             _ => panic!("unexpected command"),
         }
     }
