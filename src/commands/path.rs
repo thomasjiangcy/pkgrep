@@ -73,9 +73,12 @@ fn resolve_registry_path(
     dep_spec: &str,
     spec: &crate::depspec::DepSpec,
 ) -> anyhow::Result<()> {
-    if !matches!(spec.ecosystem, Ecosystem::Npm | Ecosystem::Pypi) {
+    if !matches!(
+        spec.ecosystem,
+        Ecosystem::Npm | Ecosystem::Pypi | Ecosystem::Crates
+    ) {
         anyhow::bail!(
-            "path supports npm/pypi registry specs only; use 'npm:<name>[@<version>]' or 'pypi:<name>[@<version>]'"
+            "path supports npm/pypi/crates registry specs only; use 'npm:<name>[@<version>]', 'pypi:<name>[@<version>]', or 'crates:<name>[@<version>]'"
         );
     }
 

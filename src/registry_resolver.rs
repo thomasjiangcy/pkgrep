@@ -10,6 +10,7 @@ use crate::source::GitPullTarget;
 
 const DEFAULT_NPM_REGISTRY_BASE: &str = "https://registry.npmjs.org";
 const DEFAULT_PYPI_REGISTRY_BASE: &str = "https://pypi.org/pypi";
+const DEFAULT_CRATES_REGISTRY_BASE: &str = "https://crates.io/api/v1/crates";
 
 pub struct RegistryResolution {
     pub target: GitPullTarget,
@@ -27,8 +28,9 @@ pub fn resolve_registry_spec(spec: DepSpec) -> anyhow::Result<RegistryResolution
     match spec.ecosystem {
         Ecosystem::Npm => resolve_npm(spec),
         Ecosystem::Pypi => resolve_pypi(spec),
+        Ecosystem::Crates => resolve_crates(spec),
         other => anyhow::bail!(
-            "unsupported registry ecosystem '{}' for package-based pull; supported: npm, pypi",
+            "unsupported registry ecosystem '{}' for package-based pull; supported: npm, pypi, crates",
             other.as_str()
         ),
     }
@@ -156,6 +158,89 @@ fn resolve_pypi(spec: DepSpec) -> anyhow::Result<RegistryResolution> {
     })
 }
 
+fn resolve_crates(spec: DepSpec) -> anyhow::Result<RegistryResolution> {
+    let package_name = spec.locator.clone();
+    let endpoint = crates_endpoint(&package_name)?;
+
+    let client = Client::builder()
+        .user_agent("pkgrep")
+        .build()
+        .context("failed to initialize HTTP client for crates metadata resolution")?;
+    let response = client
+        .get(endpoint.clone())
+        .send()
+        .with_context(|| format!("failed to fetch crates metadata from {}", endpoint))?;
+    let response = response.error_for_status().with_context(|| {
+        format!(
+            "crates metadata request failed for package '{}'",
+            package_name
+        )
+    })?;
+    let metadata: CratesPackageResponse = response.json().with_context(|| {
+        format!(
+            "failed to parse crates metadata JSON for '{}'",
+            package_name
+        )
+    })?;
+
+    let selected_version = spec.version.unwrap_or_else(|| {
+        metadata
+            .krate
+            .max_stable_version
+            .clone()
+            .filter(|version| !version.is_empty())
+            .or_else(|| {
+                metadata
+                    .krate
+                    .newest_version
+                    .clone()
+                    .filter(|version| !version.is_empty())
+            })
+            .unwrap_or_else(|| metadata.krate.max_version.clone())
+    });
+
+    if !metadata
+        .versions
+        .iter()
+        .any(|version| version.num == selected_version)
+    {
+        anyhow::bail!(
+            "crates package '{}' does not contain requested version '{}'",
+            package_name,
+            selected_version
+        );
+    }
+
+    let repository_url = metadata
+        .krate
+        .repository
+        .clone()
+        .or_else(|| metadata.krate.homepage.clone())
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "crates package '{}' does not provide a repository/source URL in metadata",
+                package_name
+            )
+        })?;
+    let git_url = normalize_git_repository_url(&repository_url).ok_or_else(|| {
+        anyhow::anyhow!(
+            "crates package '{}' repository URL is not a supported git URL: {}",
+            package_name,
+            repository_url
+        )
+    })?;
+
+    Ok(RegistryResolution {
+        target: GitPullTarget {
+            ecosystem: Ecosystem::Crates,
+            locator: package_name,
+            git_url: git_url.clone(),
+            requested_revision: selected_version.clone(),
+        },
+        package_version: selected_version,
+    })
+}
+
 fn npm_endpoint(package_name: &str) -> anyhow::Result<Url> {
     let base = std::env::var("PKGREP_NPM_REGISTRY_URL")
         .unwrap_or_else(|_| DEFAULT_NPM_REGISTRY_BASE.to_string());
@@ -178,6 +263,18 @@ fn pypi_endpoint(package_name: &str) -> anyhow::Result<Url> {
         .pop_if_empty()
         .push(package_name)
         .push("json");
+    Ok(url)
+}
+
+fn crates_endpoint(package_name: &str) -> anyhow::Result<Url> {
+    let base = std::env::var("PKGREP_CRATES_REGISTRY_URL")
+        .unwrap_or_else(|_| DEFAULT_CRATES_REGISTRY_BASE.to_string());
+    let mut url =
+        Url::parse(&base).with_context(|| format!("invalid crates registry URL: {}", base))?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("invalid crates registry URL path: {}", base))?
+        .pop_if_empty()
+        .push(package_name);
     Ok(url)
 }
 
@@ -280,6 +377,32 @@ struct PypiInfo {
     project_urls: Option<BTreeMap<String, String>>,
     #[serde(default)]
     home_page: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CratesPackageResponse {
+    #[serde(rename = "crate")]
+    krate: CratesCrate,
+    #[serde(default)]
+    versions: Vec<CratesVersion>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CratesCrate {
+    max_version: String,
+    #[serde(default)]
+    newest_version: Option<String>,
+    #[serde(default)]
+    max_stable_version: Option<String>,
+    #[serde(default)]
+    repository: Option<String>,
+    #[serde(default)]
+    homepage: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CratesVersion {
+    num: String,
 }
 
 #[cfg(test)]

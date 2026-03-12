@@ -32,6 +32,7 @@ pub struct ReconcileGlobalIndexResult {
 pub enum RegistrySpecEcosystem {
     Npm,
     Pypi,
+    Crates,
 }
 
 impl RegistrySpecEcosystem {
@@ -39,6 +40,7 @@ impl RegistrySpecEcosystem {
         match ecosystem {
             Ecosystem::Npm => Some(Self::Npm),
             Ecosystem::Pypi => Some(Self::Pypi),
+            Ecosystem::Crates => Some(Self::Crates),
             _ => None,
         }
     }
@@ -473,6 +475,7 @@ fn infer_registry_ref_from_cache_key(cache_key: &str) -> Option<RegistrySpecRef>
     let ecosystem = match ecosystem_label {
         "npm" => RegistrySpecEcosystem::Npm,
         "pypi" => RegistrySpecEcosystem::Pypi,
+        "crates" => RegistrySpecEcosystem::Crates,
         _ => return None,
     };
 
@@ -484,6 +487,13 @@ fn infer_registry_ref_from_cache_key(cache_key: &str) -> Option<RegistrySpecRef>
     let package_version = match ecosystem {
         RegistrySpecEcosystem::Npm => None,
         RegistrySpecEcosystem::Pypi => {
+            if requested_revision.is_empty() {
+                None
+            } else {
+                Some(requested_revision.to_string())
+            }
+        }
+        RegistrySpecEcosystem::Crates => {
             if requested_revision.is_empty() {
                 None
             } else {
