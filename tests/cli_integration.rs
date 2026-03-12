@@ -431,6 +431,50 @@ fn pull_with_explicit_git_spec_materializes_and_links() {
 }
 
 #[test]
+fn pull_with_git_spec_without_revision_resolves_default_branch_head() {
+    let temp = TempDir::new().expect("tempdir");
+    let repo_path = temp.path().join("source-repo");
+    let revision = init_local_git_repo(&repo_path);
+    let dep_spec = format!("git:{}", repo_path.display());
+
+    cmd_in_temp(&temp)
+        .args(["pull", &dep_spec])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(&revision));
+
+    let link = first_symlink_entry(&temp.path().join(".pkgrep").join("deps").join("git"));
+    let link_name = link
+        .file_name()
+        .expect("link name")
+        .to_string_lossy()
+        .to_string();
+    assert!(
+        link_name.ends_with(&revision),
+        "expected resolved link name to end with commit {revision}, got {link_name}"
+    );
+
+    let manifest_path = temp.path().join(".pkgrep").join("manifest.json");
+    let manifest = read_json(&manifest_path);
+    let manifest_key = format!("git:{}@{}", repo_path.display(), revision);
+    let entry = manifest
+        .get("entries")
+        .and_then(Value::as_object)
+        .and_then(|entries| entries.get(&manifest_key))
+        .expect("manifest entry for resolved git revision");
+    let aliases = entry
+        .get("aliases")
+        .and_then(Value::as_array)
+        .expect("manifest aliases");
+    assert!(
+        aliases
+            .iter()
+            .any(|alias| alias.as_str() == Some(dep_spec.as_str())),
+        "expected bare git dep spec alias in manifest"
+    );
+}
+
+#[test]
 fn path_returns_link_when_present() {
     let temp = TempDir::new().expect("tempdir");
     let repo_path = temp.path().join("source-repo");
@@ -450,6 +494,27 @@ fn path_returns_link_when_present() {
         .assert()
         .success()
         .stdout(predicate::str::contains(&link_display));
+}
+
+#[test]
+fn path_returns_link_for_bare_git_spec_when_single_match() {
+    let temp = TempDir::new().expect("tempdir");
+    let repo_path = temp.path().join("source-repo");
+    init_local_git_repo(&repo_path);
+    let dep_spec = format!("git:{}", repo_path.display());
+
+    cmd_in_temp(&temp)
+        .args(["pull", &dep_spec])
+        .assert()
+        .success();
+
+    let link = first_symlink_entry(&temp.path().join(".pkgrep").join("deps").join("git"));
+    let expected = link.display().to_string();
+    cmd_in_temp(&temp)
+        .args(["path", &dep_spec])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(expected));
 }
 
 #[test]
@@ -745,6 +810,35 @@ fn remove_with_yes_deletes_project_symlink() {
     let links_root = temp.path().join(".pkgrep").join("deps").join("git");
     let link = first_symlink_entry(&links_root);
     assert!(link.exists());
+
+    cmd_in_temp(&temp)
+        .args(["remove", &dep_spec, "--yes"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Remove completed: removed=1"));
+
+    assert!(
+        !link.exists(),
+        "expected link to be removed, found {}",
+        link.display()
+    );
+}
+
+#[test]
+fn remove_with_yes_deletes_project_symlink_for_bare_git_spec() {
+    let temp = TempDir::new().expect("tempdir");
+    let repo_path = temp.path().join("source-repo");
+    init_local_git_repo(&repo_path);
+    let dep_spec = format!("git:{}", repo_path.display());
+
+    cmd_in_temp(&temp)
+        .args(["pull", &dep_spec])
+        .assert()
+        .success();
+
+    let links_root = temp.path().join(".pkgrep").join("deps").join("git");
+    let link = first_symlink_entry(&links_root);
+    assert!(link.exists(), "expected link at {}", link.display());
 
     cmd_in_temp(&temp)
         .args(["remove", &dep_spec, "--yes"])

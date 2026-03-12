@@ -59,7 +59,7 @@ pub struct LinkRecordMetadata {
 }
 
 #[derive(Clone, Debug)]
-pub struct RegistryLinkMatch {
+pub struct LinkMatch {
     pub dep_spec: String,
     pub link_path: PathBuf,
 }
@@ -215,7 +215,7 @@ pub fn find_registry_link_matches(
     ecosystem: &Ecosystem,
     locator: &str,
     version: Option<&str>,
-) -> anyhow::Result<Vec<RegistryLinkMatch>> {
+) -> anyhow::Result<Vec<LinkMatch>> {
     let Some(registry_ecosystem) = RegistrySpecEcosystem::from_depspec_ecosystem(ecosystem) else {
         return Ok(Vec::new());
     };
@@ -247,7 +247,40 @@ pub fn find_registry_link_matches(
             continue;
         }
 
-        matches.push(RegistryLinkMatch {
+        matches.push(LinkMatch {
+            dep_spec,
+            link_path: absolute_link_path,
+        });
+    }
+
+    matches.sort_by(|lhs, rhs| lhs.dep_spec.cmp(&rhs.dep_spec));
+    Ok(matches)
+}
+
+pub fn find_git_link_matches(
+    cwd: &Path,
+    original_dep_spec: &str,
+    locator: &str,
+) -> anyhow::Result<Vec<LinkMatch>> {
+    let path = project_manifest_path(cwd);
+    let mut manifest: ProjectManifest = read_json_or_default(&path)?;
+    ensure_project_manifest_defaults(&mut manifest);
+
+    let mut matches = Vec::new();
+    for (dep_spec, entry) in manifest.entries {
+        let alias_match = entry.aliases.contains(original_dep_spec);
+        let dep_spec_match = matches_git_locator(&dep_spec, locator);
+
+        if !alias_match && !dep_spec_match {
+            continue;
+        }
+
+        let absolute_link_path = cwd.join(&entry.link_path);
+        if !absolute_link_path.exists() {
+            continue;
+        }
+
+        matches.push(LinkMatch {
             dep_spec,
             link_path: absolute_link_path,
         });
@@ -436,6 +469,17 @@ fn looks_like_git_locator(locator: &str) -> bool {
     locator.contains("://")
         || locator.starts_with("git@")
         || (locator.contains('/') && locator.ends_with(".git"))
+}
+
+fn matches_git_locator(dep_spec: &str, locator: &str) -> bool {
+    let Ok(parsed) = depspec::parse(dep_spec) else {
+        return false;
+    };
+
+    match parsed.source_kind {
+        crate::depspec::SourceKind::Git { url, .. } => url == locator,
+        crate::depspec::SourceKind::Registry => false,
+    }
 }
 
 fn project_references_cache_key(

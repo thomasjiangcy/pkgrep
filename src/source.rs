@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use git2::build::CheckoutBuilder;
-use git2::{AutotagOption, FetchOptions, Oid, RemoteCallbacks, Repository};
+use git2::{AutotagOption, Direction, FetchOptions, Oid, RemoteCallbacks, Repository};
 use tracing::debug;
 
 use crate::config::Config;
@@ -24,6 +24,12 @@ pub struct MaterializedSource {
     pub checkout_path: PathBuf,
     pub project_link_path: PathBuf,
     pub git_fetch_performed: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct ResolvedRemoteRevision {
+    pub default_branch_ref: String,
+    pub commit_id: String,
 }
 
 pub fn materialize_git_source(
@@ -67,6 +73,67 @@ pub fn cache_root_for(cwd: &Path, configured_cache_dir: &Path) -> PathBuf {
     } else {
         cwd.join(configured_cache_dir)
     }
+}
+
+pub fn resolve_default_remote_revision(git_url: &str) -> anyhow::Result<ResolvedRemoteRevision> {
+    let temp_repo_path = std::env::temp_dir().join(format!(
+        "pkgrep-remote-resolve-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .context("system clock is before UNIX_EPOCH")?
+            .as_nanos()
+    ));
+    fs::create_dir_all(&temp_repo_path).with_context(|| {
+        format!(
+            "failed to create temporary git repository directory {}",
+            temp_repo_path.display()
+        )
+    })?;
+
+    let repo = Repository::init_bare(&temp_repo_path)
+        .context("failed to initialize temporary bare repository")?;
+    let mut remote = repo
+        .remote_anonymous(git_url)
+        .with_context(|| format!("failed to open anonymous remote for {}", git_url))?;
+
+    remote
+        .connect(Direction::Fetch)
+        .with_context(|| format!("failed to connect to remote {}", git_url))?;
+
+    let default_branch_ref = remote
+        .default_branch()
+        .with_context(|| format!("failed to resolve default branch for {}", git_url))?
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("default branch for {} is not valid UTF-8", git_url))?
+        .trim()
+        .to_string();
+
+    let commit_id = {
+        let heads = remote
+            .list()
+            .with_context(|| format!("failed to list remote heads for {}", git_url))?;
+        let matching_head = heads
+            .iter()
+            .find(|head| head.name() == default_branch_ref)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "failed to find advertised head for default branch '{}' from {}",
+                    default_branch_ref,
+                    git_url
+                )
+            })?;
+        matching_head.oid().to_string()
+    };
+
+    drop(remote);
+    drop(repo);
+    let _ = fs::remove_dir_all(&temp_repo_path);
+
+    Ok(ResolvedRemoteRevision {
+        default_branch_ref,
+        commit_id,
+    })
 }
 
 pub fn link_checkout(

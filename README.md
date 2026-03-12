@@ -131,6 +131,9 @@ pkgrep skill install --force
 Examples:
 
 ```bash
+# Pull git dependency source at the remote default branch tip
+pkgrep pull git:https://github.com/facebook/react.git
+
 # Pull explicit git dependency source
 pkgrep pull git:https://github.com/facebook/react.git@v18.3.1
 
@@ -186,16 +189,18 @@ Current behavior:
 - `remove`, `cache clean`, and `cache prune` are no-op unless `--yes` is provided.
 - `cache hydrate` requires a remote backend (`s3` or `azure_blob`) and only hydrates git-backed sources from object storage.
 - `pull` supports:
+  - explicit git specs without a revision (`git:<url>`), resolved to the remote default-branch commit at pull time
   - explicit git specs (`git:<url>@<revision>` or `git:<url>#<revision>`)
   - npm package specs (`npm:<name>` / `npm:<name>@<version>`) resolved via npm metadata
   - pypi package specs (`pypi:<name>` / `pypi:<name>@<version>`) resolved via PyPI metadata
   - shorthand package specs (`<name>` / `<name>@<version>`) when exactly one supported ecosystem is inferred from project lockfiles in cwd
 - `path` supports:
+  - git-backed specs without a revision (`git:<url>`) when exactly one linked match exists
   - git-backed specs (`git:<url>@<revision>` / `git:<url>#<revision>`)
   - npm/pypi package specs when matching links exist in project manifest metadata
   - versionless npm/pypi specs (`npm:<name>`, `pypi:<name>`) only when exactly one linked match exists
   - for legacy manifest entries without package-version metadata, versioned npm/pypi lookups may require re-running `pkgrep pull <spec>` to backfill metadata
-- Git dep specs accept both `git:<url>@<revision>` and `git:<url>#<revision>`.
+- Git dep specs accept `git:<url>`, `git:<url>@<revision>`, and `git:<url>#<revision>`.
 - Project links are human-readable under `.pkgrep/deps/...`; internal cache keys remain normalized for safety/determinism.
 - With remote backend configured, `pull` attempts remote hydrate first; if missing, it fetches from Git and then publishes to remote cache.
 - `cache prune` reconciles stale project references from the global index, then prunes unreferenced local checkouts and git mirrors.

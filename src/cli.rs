@@ -22,6 +22,7 @@ pub enum Command {
     /// Pull dependency source code into cache and link into the project.
     Pull {
         /// Dependency spec(s), for example:
+        /// git:https://github.com/org/repo.git
         /// git:https://github.com/org/repo.git@<rev>
         /// git:https://github.com/org/repo.git#<rev> (useful when rev contains '@')
         /// npm:zod@<version>
