@@ -47,7 +47,28 @@ pub(super) fn run_skill_install(
         None => default_target_root(cwd, mode)?,
     };
 
-    fs::create_dir_all(&target_root).with_context(|| {
+    install_skill_to_root(&target_root, force)?;
+    let destination = target_root.join(SKILL_NAME);
+
+    println!("Installed skill: {}", destination.display());
+    println!("Restart your agent runtime to load new skills");
+
+    Ok(())
+}
+
+pub(crate) fn install_project_skill_if_missing(cwd: &Path) -> anyhow::Result<bool> {
+    let target_root = default_target_root(cwd, SkillInstallMode::Project)?;
+    let destination = target_root.join(SKILL_NAME);
+    if destination.exists() {
+        return Ok(false);
+    }
+
+    install_skill_to_root(&target_root, false)?;
+    Ok(true)
+}
+
+fn install_skill_to_root(target_root: &Path, force: bool) -> anyhow::Result<()> {
+    fs::create_dir_all(target_root).with_context(|| {
         format!(
             "failed to create skills directory {}",
             target_root.display()
@@ -73,10 +94,6 @@ pub(super) fn run_skill_install(
     }
 
     install_embedded_skill(&destination)?;
-
-    println!("Installed skill: {}", destination.display());
-    println!("Restart your agent runtime to load new skills");
-
     Ok(())
 }
 

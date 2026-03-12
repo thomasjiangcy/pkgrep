@@ -67,6 +67,7 @@ fn command_name(command: &Command) -> &'static str {
         Command::Remove { .. } => "remove",
         Command::Path { .. } => "path",
         Command::List { .. } => "list",
+        Command::Init => "init",
         Command::Cache { command } => match command {
             CacheCommand::Hydrate { .. } => "cache_hydrate",
             CacheCommand::Clean { .. } => "cache_clean",
