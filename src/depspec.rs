@@ -7,6 +7,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 pub enum Ecosystem {
     Npm,
     Pypi,
+    Crates,
     Git,
     Other(String),
 }
@@ -16,6 +17,7 @@ impl Ecosystem {
         match self {
             Self::Npm => "npm",
             Self::Pypi => "pypi",
+            Self::Crates => "crates",
             Self::Git => "git",
             Self::Other(scheme) => scheme.as_str(),
         }
@@ -63,6 +65,7 @@ pub fn parse(input: &str) -> Result<DepSpec, String> {
     let ecosystem = match scheme {
         "npm" => Ecosystem::Npm,
         "pypi" => Ecosystem::Pypi,
+        "crates" => Ecosystem::Crates,
         other => Ecosystem::Other(other.to_string()),
     };
 

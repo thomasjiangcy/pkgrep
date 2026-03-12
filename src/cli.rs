@@ -27,7 +27,8 @@ pub enum Command {
         /// git:https://github.com/org/repo.git#<rev> (useful when rev contains '@')
         /// npm:zod@<version>
         /// pypi:requests@<version>
-        /// zod@<version> (implicit npm/pypi when a single supported project lockfile ecosystem is detected)
+        /// crates:serde@<version>
+        /// zod@<version> (implicit npm/pypi/crates when a single supported project lockfile ecosystem is detected)
         dep_specs: Vec<String>,
     },
 

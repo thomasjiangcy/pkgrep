@@ -286,22 +286,48 @@ fn resolve_pull_targets_from_specs(
             }
             SourceKind::Registry => {
                 let mut spec = spec;
-                if spec.ecosystem == Ecosystem::Npm && spec.version.is_none() {
-                    if let Some(detected) =
-                        installed_version::detect_installed_npm_version(cwd, &spec.locator)?
-                    {
-                        println!(
-                            "detected installed npm version for {}: {} (from {})",
-                            spec.locator,
-                            detected.version,
-                            detected.source.as_str()
-                        );
-                        spec.version = Some(detected.version);
-                    } else {
-                        println!(
-                            "no installed npm version detected for {}; falling back to registry latest",
-                            spec.locator
-                        );
+                if spec.version.is_none() {
+                    match spec.ecosystem {
+                        Ecosystem::Npm => {
+                            if let Some(detected) =
+                                installed_version::detect_installed_npm_version(cwd, &spec.locator)?
+                            {
+                                println!(
+                                    "detected installed npm version for {}: {} (from {})",
+                                    spec.locator,
+                                    detected.version,
+                                    detected.source.as_str()
+                                );
+                                spec.version = Some(detected.version);
+                            } else {
+                                println!(
+                                    "no installed npm version detected for {}; falling back to registry latest",
+                                    spec.locator
+                                );
+                            }
+                        }
+                        Ecosystem::Crates => {
+                            if let Some(detected) =
+                                installed_version::detect_installed_crates_version(
+                                    cwd,
+                                    &spec.locator,
+                                )?
+                            {
+                                println!(
+                                    "detected installed crates version for {}: {} (from {})",
+                                    spec.locator,
+                                    detected.version,
+                                    detected.source.as_str()
+                                );
+                                spec.version = Some(detected.version);
+                            } else {
+                                println!(
+                                    "no installed crates version detected for {}; falling back to registry latest",
+                                    spec.locator
+                                );
+                            }
+                        }
+                        _ => {}
                     }
                 }
                 if spec.ecosystem == Ecosystem::Pypi && spec.version.is_none() {
@@ -407,7 +433,7 @@ fn infer_default_registry_ecosystem(cwd: &Path) -> anyhow::Result<Ecosystem> {
     let inputs = providers::detect_supported_project_files(cwd);
     if inputs.is_empty() {
         anyhow::bail!(
-            "cannot infer shorthand dependency ecosystem in {}: no supported lockfiles detected; use explicit specs such as 'npm:<name>' or 'pypi:<name>'",
+            "cannot infer shorthand dependency ecosystem in {}: no supported lockfiles detected; use explicit specs such as 'npm:<name>', 'pypi:<name>', or 'crates:<name>'",
             cwd.display()
         );
     }
@@ -430,7 +456,7 @@ fn infer_default_registry_ecosystem(cwd: &Path) -> anyhow::Result<Ecosystem> {
         let ecosystem_labels = ecosystems.iter().copied().collect::<Vec<_>>().join(", ");
         let lockfile_labels = lockfiles.into_iter().collect::<Vec<_>>().join(", ");
         anyhow::bail!(
-            "cannot infer shorthand dependency ecosystem in {}: multiple supported lockfile ecosystems detected ({ecosystem_labels}) via [{lockfile_labels}]; use explicit specs such as 'npm:<name>' or 'pypi:<name>'",
+            "cannot infer shorthand dependency ecosystem in {}: multiple supported lockfile ecosystems detected ({ecosystem_labels}) via [{lockfile_labels}]; use explicit specs such as 'npm:<name>', 'pypi:<name>', or 'crates:<name>'",
             cwd.display()
         );
     }
@@ -438,6 +464,7 @@ fn infer_default_registry_ecosystem(cwd: &Path) -> anyhow::Result<Ecosystem> {
     match ecosystems.into_iter().next() {
         Some("npm") => Ok(Ecosystem::Npm),
         Some("pypi") => Ok(Ecosystem::Pypi),
+        Some("crates") => Ok(Ecosystem::Crates),
         Some(other) => Err(anyhow::anyhow!(
             "unsupported inferred shorthand dependency ecosystem '{other}'"
         )),
@@ -559,6 +586,7 @@ fn ecosystem_from_provider(ecosystem: &providers::ProviderEcosystem) -> Ecosyste
     match ecosystem {
         providers::ProviderEcosystem::Npm => Ecosystem::Npm,
         providers::ProviderEcosystem::Pypi => Ecosystem::Pypi,
+        providers::ProviderEcosystem::Crates => Ecosystem::Crates,
     }
 }
 
@@ -567,6 +595,7 @@ fn ecosystem_from_provider_kind(kind: &providers::ProviderKind) -> &'static str 
         providers::ProviderKind::Package
         | providers::ProviderKind::Pnpm
         | providers::ProviderKind::Yarn => "npm",
+        providers::ProviderKind::Cargo => "crates",
         providers::ProviderKind::Uv => "pypi",
     }
 }
@@ -642,5 +671,16 @@ mod tests {
             normalize_explicit_dep_specs_for_pull(temp.path(), &[String::from("zod@3.23.8")])
                 .expect("normalize shorthand");
         assert_eq!(normalized, vec![String::from("npm:zod@3.23.8")]);
+    }
+
+    #[test]
+    fn shorthand_inference_rewrites_with_single_cargo_lockfile() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        std::fs::write(temp.path().join("Cargo.lock"), "").expect("write cargo lock");
+
+        let normalized =
+            normalize_explicit_dep_specs_for_pull(temp.path(), &[String::from("serde")])
+                .expect("normalize shorthand");
+        assert_eq!(normalized, vec![String::from("crates:serde")]);
     }
 }

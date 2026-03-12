@@ -1,0 +1,12 @@
+version = 3
+
+[[package]]
+name = "serde"
+version = "1.0.228"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0000000000000000000000000000000000000000000000000000000000000000"
+
+[[package]]
+name = "demo-git-crate"
+version = "0.1.0"
+source = "git+https://example.com/demo-git-crate.git?branch=main#abc123def456"

@@ -1,6 +1,7 @@
 mod npm_package_lock;
 mod pnpm_lock;
 mod python_uv_lock;
+mod rust_cargo_lock;
 mod yarn_lock;
 
 use std::path::{Path, PathBuf};
@@ -9,6 +10,7 @@ use thiserror::Error;
 
 const PACKAGE_LOCK: &str = "package-lock.json";
 const PNPM_LOCK: &str = "pnpm-lock.yaml";
+const CARGO_LOCK: &str = "Cargo.lock";
 const UV_LOCK: &str = "uv.lock";
 const YARN_LOCK: &str = "yarn.lock";
 
@@ -16,6 +18,7 @@ const YARN_LOCK: &str = "yarn.lock";
 pub enum ProviderKind {
     Package,
     Pnpm,
+    Cargo,
     Uv,
     Yarn,
 }
@@ -36,6 +39,7 @@ pub struct GitSourceHint {
 pub enum ProviderEcosystem {
     Npm,
     Pypi,
+    Crates,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -101,6 +105,14 @@ pub fn detect_supported_project_files(project_root: &Path) -> Vec<ProviderInputM
         });
     }
 
+    let cargo_lock = project_root.join(CARGO_LOCK);
+    if cargo_lock.exists() {
+        matches.push(ProviderInputMatch {
+            provider: ProviderKind::Cargo,
+            path: cargo_lock,
+        });
+    }
+
     let yarn_lock = project_root.join(YARN_LOCK);
     if yarn_lock.exists() {
         matches.push(ProviderInputMatch {
@@ -118,6 +130,7 @@ pub fn parse_provider_input(
     match input.provider {
         ProviderKind::Package => npm_package_lock::parse(&input.path),
         ProviderKind::Pnpm => pnpm_lock::parse(&input.path),
+        ProviderKind::Cargo => rust_cargo_lock::parse(&input.path),
         ProviderKind::Uv => python_uv_lock::parse(&input.path),
         ProviderKind::Yarn => yarn_lock::parse(&input.path),
     }
@@ -198,6 +211,30 @@ mod tests {
     }
 
     #[test]
+    fn parses_cargo_lock_fixture() {
+        let path = fixture("fixtures/rust/Cargo.lock");
+        let input = ProviderInputMatch {
+            provider: ProviderKind::Cargo,
+            path,
+        };
+
+        let deps = parse_provider_input(&input).expect("parse cargo lock");
+        assert!(deps.iter().any(|dep| {
+            dep.ecosystem == ProviderEcosystem::Crates
+                && dep.name == "serde"
+                && dep.version == "1.0.228"
+        }));
+        assert!(deps.iter().any(|dep| {
+            dep.name == "demo-git-crate"
+                && dep.version == "0.1.0"
+                && dep.git_hint.as_ref().is_some_and(|hint| {
+                    hint.url == "https://example.com/demo-git-crate.git"
+                        && hint.requested_revision == "main"
+                })
+        }));
+    }
+
+    #[test]
     fn parses_yarn_lock_fixture() {
         let path = fixture("fixtures/js/yarn.lock");
         let input = ProviderInputMatch {
@@ -227,10 +264,11 @@ mod tests {
         std::fs::write(temp.path().join(PACKAGE_LOCK), "{}").expect("write package-lock");
         std::fs::write(temp.path().join(PNPM_LOCK), "").expect("write pnpm lock");
         std::fs::write(temp.path().join(UV_LOCK), "").expect("write uv.lock");
+        std::fs::write(temp.path().join(CARGO_LOCK), "").expect("write cargo lock");
         std::fs::write(temp.path().join(YARN_LOCK), "").expect("write yarn lock");
 
         let detected = detect_supported_project_files(temp.path());
-        assert_eq!(detected.len(), 4);
+        assert_eq!(detected.len(), 5);
         assert!(
             detected
                 .iter()
@@ -240,6 +278,11 @@ mod tests {
             detected
                 .iter()
                 .any(|m| matches!(m.provider, ProviderKind::Pnpm))
+        );
+        assert!(
+            detected
+                .iter()
+                .any(|m| matches!(m.provider, ProviderKind::Cargo))
         );
         assert!(
             detected

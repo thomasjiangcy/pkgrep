@@ -517,6 +517,50 @@ fn pull_explicit_pypi_without_local_version_falls_back_to_registry_latest() {
 }
 
 #[test]
+fn pull_shorthand_infers_crates_with_single_cargo_lockfile() {
+    let temp = TempDir::new().expect("tempdir");
+    std::fs::write(
+        temp.path().join("Cargo.lock"),
+        "version = 3\n\n[[package]]\nname = \"serde\"\nversion = \"1.0.228\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n",
+    )
+    .expect("write cargo lock");
+
+    cmd_in_temp(&temp)
+        .env("PKGREP_CRATES_REGISTRY_URL", "not-a-url")
+        .args(["pull", "serde"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "inferred shorthand 'serde' as 'crates:serde'",
+        ))
+        .stdout(predicate::str::contains(
+            "detected installed crates version for serde: 1.0.228 (from Cargo.lock)",
+        ))
+        .stdout(predicate::str::contains(
+            "resolving package metadata for crates:serde@1.0.228",
+        ))
+        .stderr(predicate::str::contains("invalid crates registry URL"));
+}
+
+#[test]
+fn pull_explicit_crates_without_local_version_falls_back_to_registry_latest() {
+    let temp = TempDir::new().expect("tempdir");
+
+    cmd_in_temp(&temp)
+        .env("PKGREP_CRATES_REGISTRY_URL", "not-a-url")
+        .args(["pull", "crates:serde"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "no installed crates version detected for serde; falling back to registry latest",
+        ))
+        .stdout(predicate::str::contains(
+            "resolving package metadata for crates:serde",
+        ))
+        .stderr(predicate::str::contains("invalid crates registry URL"));
+}
+
+#[test]
 fn pull_shorthand_prefers_installed_npm_version_from_node_modules() {
     let temp = TempDir::new().expect("tempdir");
     std::fs::write(temp.path().join("package-lock.json"), "{}").expect("write package-lock");
@@ -890,6 +934,44 @@ fn list_json_reports_project_manifest_entries() {
         .stdout(predicate::str::contains(
             "\"cache_key\": \"npm/b64_cmVhY3Q/deadbeef/fingerprint\"",
         ))
+        .stdout(predicate::str::contains(link_path.display().to_string()));
+}
+
+#[test]
+fn path_returns_crates_registry_link_when_present() {
+    let temp = TempDir::new().expect("tempdir");
+    let link_relative = ".pkgrep/deps/crates/serde@1.0.228";
+    let link_path = temp.path().join(link_relative);
+    std::fs::create_dir_all(link_path.parent().expect("link parent")).expect("create link parent");
+    std::fs::write(temp.path().join("target.txt"), "fixture").expect("write target");
+    std::os::unix::fs::symlink(temp.path().join("target.txt"), &link_path).expect("create symlink");
+
+    let manifest = json!({
+        "schema_version": 1,
+        "entries": {
+            "git:https://github.com/serde-rs/serde.git@1.0.228": {
+                "link_path": link_relative,
+                "cache_key": "crates/b64_c2VyZGU/1.0.228/fingerprint",
+                "aliases": ["crates:serde", "crates:serde@1.0.228"],
+                "registry_refs": [{
+                    "ecosystem": "crates",
+                    "name": "serde",
+                    "package_version": "1.0.228"
+                }]
+            }
+        }
+    });
+    std::fs::create_dir_all(temp.path().join(".pkgrep")).expect("create pkgrep dir");
+    std::fs::write(
+        temp.path().join(".pkgrep").join("manifest.json"),
+        serde_json::to_vec_pretty(&manifest).expect("serialize manifest"),
+    )
+    .expect("write manifest");
+
+    cmd_in_temp(&temp)
+        .args(["path", "crates:serde"])
+        .assert()
+        .success()
         .stdout(predicate::str::contains(link_path.display().to_string()));
 }
 

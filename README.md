@@ -148,6 +148,9 @@ pkgrep pull git:https://github.com/facebook/react.git@v18.3.1
 # Pull npm package source by package version
 pkgrep pull npm:zod@3.23.8
 
+# Pull crates.io package source by package version
+pkgrep pull crates:serde@1.0.228
+
 # Pull package source using implicit ecosystem inference from project lockfile(s)
 # (works only when exactly one supported ecosystem is detected in cwd)
 pkgrep pull zod@3.23.8
@@ -170,7 +173,7 @@ pkgrep pull 'git:https://github.com/facebook/react.git@eslint-plugin-react-hooks
 pkgrep pull 'git:https://github.com/facebook/react.git#eslint-plugin-react-hooks@5.0.0'
 
 # Pull from project files in current directory
-# (currently auto-detects package-lock.json, pnpm-lock.yaml, yarn.lock, and uv.lock, and only pulls entries with git source hints)
+# (currently auto-detects package-lock.json, pnpm-lock.yaml, yarn.lock, uv.lock, and Cargo.lock, and only pulls entries with git source hints)
 pkgrep pull
 
 # Initialize project-local pkgrep files
@@ -213,13 +216,15 @@ Current behavior:
   - versionless npm package pulls prefer a project-local version detected from `node_modules`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, or concrete `package.json` declarations before falling back to the registry latest tag
   - pypi package specs (`pypi:<name>` / `pypi:<name>@<version>`) resolved via PyPI metadata
   - versionless pypi package pulls prefer a project-local version detected from `uv.lock` before falling back to the registry latest tag
+  - crates package specs (`crates:<name>` / `crates:<name>@<version>`) resolved via crates.io metadata
+  - versionless crates package pulls prefer a project-local version detected from `Cargo.lock` before falling back to the registry latest tag
   - shorthand package specs (`<name>` / `<name>@<version>`) when exactly one supported ecosystem is inferred from project lockfiles in cwd
 - `path` supports:
   - git-backed specs without a revision (`git:<url>`) when exactly one linked match exists
   - git-backed specs (`git:<url>@<revision>` / `git:<url>#<revision>`)
-  - npm/pypi package specs when matching links exist in project manifest metadata
-  - versionless npm/pypi specs (`npm:<name>`, `pypi:<name>`) only when exactly one linked match exists
-  - for legacy manifest entries without package-version metadata, versioned npm/pypi lookups may require re-running `pkgrep pull <spec>` to backfill metadata
+  - npm/pypi/crates package specs when matching links exist in project manifest metadata
+  - versionless npm/pypi/crates specs (`npm:<name>`, `pypi:<name>`, `crates:<name>`) only when exactly one linked match exists
+  - for legacy manifest entries without package-version metadata, versioned npm/pypi/crates lookups may require re-running `pkgrep pull <spec>` to backfill metadata
 - Git dep specs accept `git:<url>`, `git:<url>@<revision>`, and `git:<url>#<revision>`.
 - Project links are human-readable under `.pkgrep/deps/...`; internal cache keys remain normalized for safety/determinism.
 - With remote backend configured, `pull` attempts remote hydrate first; if missing, it fetches from Git and then publishes to remote cache.

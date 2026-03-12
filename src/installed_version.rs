@@ -15,6 +15,7 @@ pub enum InstalledVersionSource {
     YarnLock,
     PackageJson,
     UvLock,
+    CargoLock,
 }
 
 impl InstalledVersionSource {
@@ -26,6 +27,7 @@ impl InstalledVersionSource {
             Self::YarnLock => "yarn.lock",
             Self::PackageJson => "package.json",
             Self::UvLock => "uv.lock",
+            Self::CargoLock => "Cargo.lock",
         }
     }
 }
@@ -113,6 +115,49 @@ pub fn detect_installed_pypi_version(
             source: InstalledVersionSource::UvLock,
         }),
     )
+}
+
+pub fn detect_installed_crates_version(
+    cwd: &Path,
+    package_name: &str,
+) -> Result<Option<InstalledVersion>> {
+    let lock_path = cwd.join("Cargo.lock");
+    if !lock_path.exists() {
+        return Ok(None);
+    }
+
+    let deps = providers::parse_provider_input(&providers::ProviderInputMatch {
+        provider: providers::ProviderKind::Cargo,
+        path: lock_path,
+    })
+    .map_err(|err| anyhow::anyhow!("failed to parse Cargo.lock for crates version detection: {err}"))?;
+
+    let normalized_package_name = normalize_crates_package_name(package_name);
+    let versions = deps
+        .into_iter()
+        .filter(|dep| {
+            dep.ecosystem == providers::ProviderEcosystem::Crates
+                && normalize_crates_package_name(&dep.name) == normalized_package_name
+                && dep.git_hint.is_none()
+        })
+        .map(|dep| dep.version)
+        .collect::<std::collections::BTreeSet<_>>();
+
+    match versions.len() {
+        0 => Ok(None),
+        1 => Ok(versions.into_iter().next().map(|version| InstalledVersion {
+            version,
+            source: InstalledVersionSource::CargoLock,
+        })),
+        _ => {
+            let joined = versions.into_iter().collect::<Vec<_>>().join(", ");
+            anyhow::bail!(
+                "multiple installed crates versions detected for {} in Cargo.lock: {}; use an explicit version",
+                package_name,
+                joined
+            );
+        }
+    }
 }
 
 fn version_from_node_modules(cwd: &Path, package_name: &str) -> Option<String> {
@@ -335,12 +380,23 @@ fn normalize_python_package_name(input: &str) -> String {
     normalized
 }
 
+fn normalize_crates_package_name(input: &str) -> String {
+    input
+        .chars()
+        .map(|ch| match ch {
+            '_' => '-',
+            other => other.to_ascii_lowercase(),
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
 
     use crate::installed_version::{
-        InstalledVersionSource, detect_installed_npm_version, detect_installed_pypi_version,
+        InstalledVersion, InstalledVersionSource, detect_installed_crates_version,
+        detect_installed_npm_version, detect_installed_pypi_version,
     };
 
     #[test]
@@ -480,7 +536,7 @@ version = "2.32.3"
             detect_installed_pypi_version(temp.path(), "requests").expect("detect pypi version");
         assert_eq!(
             version,
-            Some(crate::installed_version::InstalledVersion {
+            Some(InstalledVersion {
                 version: "2.32.3".to_string(),
                 source: InstalledVersionSource::UvLock,
             })
@@ -506,9 +562,65 @@ version = "3.4.2"
             .expect("detect normalized pypi version");
         assert_eq!(
             version,
-            Some(crate::installed_version::InstalledVersion {
+            Some(InstalledVersion {
                 version: "3.4.2".to_string(),
                 source: InstalledVersionSource::UvLock,
+            })
+        );
+    }
+
+    #[test]
+    fn detects_single_crates_version_from_cargo_lock() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            temp.path().join("Cargo.lock"),
+            "version = 3\n\n[[package]]\nname = \"serde\"\nversion = \"1.0.228\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n",
+        )
+        .expect("write cargo lock");
+
+        let version = detect_installed_crates_version(temp.path(), "serde").expect("detect serde");
+        assert_eq!(
+            version,
+            Some(InstalledVersion {
+                version: "1.0.228".to_string(),
+                source: InstalledVersionSource::CargoLock,
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_ambiguous_crates_versions_from_cargo_lock() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            temp.path().join("Cargo.lock"),
+            "version = 3\n\n[[package]]\nname = \"serde\"\nversion = \"1.0.188\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n\n[[package]]\nname = \"serde\"\nversion = \"1.0.228\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n",
+        )
+        .expect("write cargo lock");
+
+        let err = detect_installed_crates_version(temp.path(), "serde")
+            .expect_err("expected ambiguous versions to fail");
+        assert!(
+            err.to_string()
+                .contains("multiple installed crates versions detected for serde in Cargo.lock")
+        );
+    }
+
+    #[test]
+    fn normalizes_crates_package_name_for_cargo_lock_lookup() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            temp.path().join("Cargo.lock"),
+            "version = 3\n\n[[package]]\nname = \"tokio-util\"\nversion = \"0.7.16\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n",
+        )
+        .expect("write cargo lock");
+
+        let version = detect_installed_crates_version(temp.path(), "tokio_util")
+            .expect("detect normalized crates version");
+        assert_eq!(
+            version,
+            Some(InstalledVersion {
+                version: "0.7.16".to_string(),
+                source: InstalledVersionSource::CargoLock,
             })
         );
     }
