@@ -233,6 +233,57 @@ fn skill_install_global_uses_home_agents_skills_and_force_replaces() {
 }
 
 #[test]
+fn init_creates_gitignore_agents_and_project_skill() {
+    let temp = TempDir::new().expect("tempdir");
+
+    cmd_in_temp(&temp)
+        .args(["init"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Updated .gitignore"))
+        .stdout(predicate::str::contains("Updated AGENTS.md"))
+        .stdout(predicate::str::contains("Installed project skill"));
+
+    let gitignore =
+        std::fs::read_to_string(temp.path().join(".gitignore")).expect("read gitignore");
+    assert!(gitignore.contains(".pkgrep/"));
+
+    let agents = std::fs::read_to_string(temp.path().join("AGENTS.md")).expect("read AGENTS.md");
+    assert!(agents.contains("## pkgrep"));
+    assert!(agents.contains("pkgrep list"));
+
+    let skill = temp
+        .path()
+        .join(".agents")
+        .join("skills")
+        .join("pkgrep-usage")
+        .join("SKILL.md");
+    assert!(
+        skill.exists(),
+        "expected installed skill at {}",
+        skill.display()
+    );
+}
+
+#[test]
+fn init_is_idempotent() {
+    let temp = TempDir::new().expect("tempdir");
+
+    cmd_in_temp(&temp).args(["init"]).assert().success();
+    cmd_in_temp(&temp)
+        .args(["init"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(".gitignore already configured"))
+        .stdout(predicate::str::contains("AGENTS.md already configured"))
+        .stdout(predicate::str::contains("Project skill already installed"));
+
+    let gitignore =
+        std::fs::read_to_string(temp.path().join(".gitignore")).expect("read gitignore");
+    assert_eq!(gitignore.matches(".pkgrep/").count(), 1);
+}
+
+#[test]
 fn cache_clean_without_yes_is_noop() {
     let temp = TempDir::new().expect("tempdir");
     cmd_in_temp(&temp)

@@ -55,6 +55,9 @@ pub enum Command {
         json: bool,
     },
 
+    /// Initialize project-local pkgrep integration files.
+    Init,
+
     /// Cache operations.
     Cache {
         #[command(subcommand)]
@@ -183,6 +186,15 @@ mod tests {
         let cli = Cli::try_parse_from(["pkgrep", "list", "--json"]).expect("parse");
         match cli.command {
             Command::List { json } => assert!(json),
+            _ => panic!("unexpected command"),
+        }
+    }
+
+    #[test]
+    fn parses_init_command() {
+        let cli = Cli::try_parse_from(["pkgrep", "init"]).expect("parse");
+        match cli.command {
+            Command::Init => {}
             _ => panic!("unexpected command"),
         }
     }

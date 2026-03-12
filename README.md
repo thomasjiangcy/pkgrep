@@ -115,12 +115,19 @@ Replace an existing install:
 pkgrep skill install --force
 ```
 
+Initialize project-local pkgrep integration:
+
+```bash
+pkgrep init
+```
+
 ## Usage
 
 `pkgrep` currently exposes these commands:
 
 - `pkgrep pull [dep-spec ...]`
 - `pkgrep list [--json]`
+- `pkgrep init`
 - `pkgrep path <dep-spec>`
 - `pkgrep remove <dep-spec ...> [--yes]`
 - `pkgrep skill install [--mode project|global] [--target <skills-dir>] [--force]`
@@ -165,6 +172,9 @@ pkgrep pull 'git:https://github.com/facebook/react.git#eslint-plugin-react-hooks
 # Pull from project files in current directory
 # (currently auto-detects package-lock.json, pnpm-lock.yaml, yarn.lock, and uv.lock, and only pulls entries with git source hints)
 pkgrep pull
+
+# Initialize project-local pkgrep files
+pkgrep init
 
 # Resolve the linked project path for a dep
 pkgrep path git:https://github.com/facebook/react.git@v18.3.1
