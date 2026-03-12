@@ -27,7 +27,7 @@ pub enum SourceKind {
     Registry,
     Git {
         url: String,
-        requested_revision: String,
+        requested_revision: Option<String>,
     },
 }
 
@@ -87,19 +87,20 @@ pub fn parse(input: &str) -> Result<DepSpec, String> {
 }
 
 fn parse_git(input: &str, rest: &str) -> Result<DepSpec, String> {
-    let (url, requested_revision) =
-        split_git_locator_and_revision(rest).ok_or_else(|| {
-            format!(
-                "invalid dep spec '{input}': git specs must include a revision via '@<revision>' or '#<revision>' (for example git:https://github.com/org/repo.git@<rev> or git:https://github.com/org/repo.git#<rev>)"
-            )
-        })?;
+    if has_explicit_empty_git_revision(rest) {
+        return Err(format!(
+            "invalid dep spec '{input}': git revision must not be empty"
+        ));
+    }
+
+    let (url, requested_revision) = split_git_locator_and_revision(rest);
 
     if url.is_empty() {
         return Err(format!(
             "invalid dep spec '{input}': git URL must not be empty"
         ));
     }
-    if requested_revision.is_empty() {
+    if matches!(requested_revision, Some(revision) if revision.is_empty()) {
         return Err(format!(
             "invalid dep spec '{input}': git revision must not be empty"
         ));
@@ -108,20 +109,24 @@ fn parse_git(input: &str, rest: &str) -> Result<DepSpec, String> {
     Ok(DepSpec {
         ecosystem: Ecosystem::Git,
         locator: url.to_string(),
-        version: Some(requested_revision.to_string()),
+        version: requested_revision.map(ToString::to_string),
         source_kind: SourceKind::Git {
             url: url.to_string(),
-            requested_revision: requested_revision.to_string(),
+            requested_revision: requested_revision.map(ToString::to_string),
         },
     })
 }
 
-fn split_git_locator_and_revision(rest: &str) -> Option<(&str, &str)> {
+fn has_explicit_empty_git_revision(rest: &str) -> bool {
+    rest.ends_with('@') || rest.ends_with('#')
+}
+
+fn split_git_locator_and_revision(rest: &str) -> (&str, Option<&str>) {
     if let Some((url, revision)) = rest.rsplit_once('#')
         && !url.is_empty()
         && !revision.is_empty()
     {
-        return Some((url, revision));
+        return (url, Some(revision));
     }
 
     // Keep existing git:<url>@<revision> compatibility, but support revisions
@@ -131,7 +136,7 @@ fn split_git_locator_and_revision(rest: &str) -> Option<(&str, &str)> {
         let url = &rest[..split_at];
         let revision = rest.get(split_at + 1..).unwrap_or_default();
         if !url.is_empty() && !revision.is_empty() {
-            return Some((url, revision));
+            return (url, Some(revision));
         }
     }
 
@@ -139,10 +144,10 @@ fn split_git_locator_and_revision(rest: &str) -> Option<(&str, &str)> {
         && !url.is_empty()
         && !revision.is_empty()
     {
-        return Some((url, revision));
+        return (url, Some(revision));
     }
 
-    None
+    (rest, None)
 }
 
 pub fn normalize_locator(raw: &str) -> String {
@@ -280,9 +285,18 @@ mod tests {
     }
 
     #[test]
-    fn parse_git_spec_requires_revision() {
-        let err = parse("git:https://github.com/org/repo.git").expect_err("expected failure");
-        assert!(err.contains("must include a revision"));
+    fn parse_git_spec_without_revision() {
+        let spec = parse("git:https://github.com/org/repo.git").expect("parse");
+        assert_eq!(spec.ecosystem, Ecosystem::Git);
+        assert_eq!(spec.locator, "https://github.com/org/repo.git");
+        assert_eq!(spec.version, None);
+        assert!(matches!(
+            spec.source_kind,
+            SourceKind::Git {
+                ref url,
+                requested_revision: None
+            } if url == "https://github.com/org/repo.git"
+        ));
     }
 
     #[test]
@@ -295,7 +309,7 @@ mod tests {
             spec.source_kind,
             SourceKind::Git {
                 ref url,
-                ref requested_revision
+                requested_revision: Some(ref requested_revision)
             } if url == "https://github.com/org/repo.git" && requested_revision == "a1b2c3"
         ));
     }
@@ -310,7 +324,7 @@ mod tests {
             spec.source_kind,
             SourceKind::Git {
                 ref url,
-                ref requested_revision
+                requested_revision: Some(ref requested_revision)
             } if url == "https://github.com/org/repo.git" && requested_revision == "release@2026.02"
         ));
     }
@@ -330,10 +344,16 @@ mod tests {
             spec.source_kind,
             SourceKind::Git {
                 ref url,
-                ref requested_revision
+                requested_revision: Some(ref requested_revision)
             } if url == "https://github.com/openworkflowdev/openworkflow.git"
                 && requested_revision == "openworkflow@0.7.3"
         ));
+    }
+
+    #[test]
+    fn parse_git_spec_with_empty_revision_fails() {
+        let err = parse("git:https://github.com/org/repo.git@").expect_err("expected failure");
+        assert!(err.contains("git revision must not be empty"));
     }
 
     #[test]

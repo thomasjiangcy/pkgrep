@@ -257,6 +257,21 @@ fn resolve_pull_targets_from_specs(
                 let mut aliases = BTreeSet::new();
                 aliases.insert(original_spec);
 
+                let requested_revision = match requested_revision {
+                    Some(requested_revision) => requested_revision,
+                    None => {
+                        let resolved =
+                            source::resolve_default_remote_revision(&url).with_context(|| {
+                                format!("failed to resolve default revision for {}", url)
+                            })?;
+                        println!(
+                            "resolved {} default branch {} -> {}",
+                            url, resolved.default_branch_ref, resolved.commit_id
+                        );
+                        resolved.commit_id
+                    }
+                };
+
                 targets.push(PullTargetResolution {
                     target: source::GitPullTarget {
                         ecosystem: spec.ecosystem,

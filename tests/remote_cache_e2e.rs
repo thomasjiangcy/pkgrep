@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use assert_cmd::Command;
-use assert_cmd::cargo::cargo_bin_cmd;
 use git2::Repository;
 use predicates::prelude::*;
 use tempfile::TempDir;
@@ -21,8 +20,23 @@ const SEAWEED_S3_PORT: u16 = 8333;
 const AZURITE_BLOB_PORT: u16 = 10000;
 const SEAWEED_S3_CONFIG_PATH: &str = ".dev/seaweedfs/s3.json";
 
+fn pkgrep_bin_path() -> PathBuf {
+    if let Some(path) = std::env::var_os("CARGO_BIN_EXE_pkgrep") {
+        return PathBuf::from(path);
+    }
+
+    let current_exe = std::env::current_exe().expect("current test executable path");
+    let deps_dir = current_exe
+        .parent()
+        .expect("integration test executable parent directory");
+    deps_dir
+        .parent()
+        .expect("integration test target directory")
+        .join(format!("pkgrep{}", std::env::consts::EXE_SUFFIX))
+}
+
 fn cmd_in_temp(temp: &TempDir) -> Command {
-    let mut cmd = cargo_bin_cmd!("pkgrep");
+    let mut cmd = Command::new(pkgrep_bin_path());
     let xdg_config = temp.path().join("xdg_config");
     let cache_dir = temp.path().join("cache");
     std::fs::create_dir_all(&xdg_config).expect("create config dir");

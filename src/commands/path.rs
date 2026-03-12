@@ -18,6 +18,10 @@ pub(super) fn run_path(cwd: &Path, dep_spec: String) -> anyhow::Result<()> {
         SourceKind::Registry => return resolve_registry_path(cwd, &dep_spec, &spec),
     };
 
+    let Some(requested_revision) = requested_revision else {
+        return resolve_git_path_without_revision(cwd, &dep_spec, &locator);
+    };
+
     let link_path = cwd.join(depspec::link_path(
         &spec.ecosystem,
         &locator,
@@ -34,6 +38,34 @@ pub(super) fn run_path(cwd: &Path, dep_spec: String) -> anyhow::Result<()> {
         dep_spec,
         link_path.display()
     )
+}
+
+fn resolve_git_path_without_revision(
+    cwd: &Path,
+    dep_spec: &str,
+    locator: &str,
+) -> anyhow::Result<()> {
+    let matches = index::find_git_link_matches(cwd, dep_spec, locator)?;
+
+    match matches.as_slice() {
+        [] => anyhow::bail!("dependency is not linked in this project: {}", dep_spec),
+        [single_match] => {
+            println!("{}", single_match.link_path.display());
+            Ok(())
+        }
+        _ => {
+            let mut candidates = matches
+                .iter()
+                .map(|link_match| link_match.dep_spec.as_str())
+                .collect::<Vec<_>>();
+            candidates.sort();
+            anyhow::bail!(
+                "multiple linked dependencies match '{}': {}. Use a versioned dependency spec.",
+                dep_spec,
+                candidates.join(", ")
+            );
+        }
+    }
 }
 
 fn resolve_registry_path(

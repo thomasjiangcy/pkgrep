@@ -1,5 +1,4 @@
 use assert_cmd::Command;
-use assert_cmd::cargo::cargo_bin_cmd;
 use git2::Repository;
 use predicates::prelude::*;
 use serde_json::Value;
@@ -7,8 +6,23 @@ use serde_json::json;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
+fn pkgrep_bin_path() -> PathBuf {
+    if let Some(path) = std::env::var_os("CARGO_BIN_EXE_pkgrep") {
+        return PathBuf::from(path);
+    }
+
+    let current_exe = std::env::current_exe().expect("current test executable path");
+    let deps_dir = current_exe
+        .parent()
+        .expect("integration test executable parent directory");
+    deps_dir
+        .parent()
+        .expect("integration test target directory")
+        .join(format!("pkgrep{}", std::env::consts::EXE_SUFFIX))
+}
+
 fn cmd_in_temp(temp: &TempDir) -> Command {
-    let mut cmd = cargo_bin_cmd!("pkgrep");
+    let mut cmd = Command::new(pkgrep_bin_path());
     let xdg_config = temp.path().join("xdg_config");
     let cache_dir = temp.path().join("cache");
     std::fs::create_dir_all(&xdg_config).expect("create config dir");
@@ -448,6 +462,50 @@ fn pull_with_explicit_git_spec_materializes_and_links() {
 }
 
 #[test]
+fn pull_with_git_spec_without_revision_resolves_default_branch_head() {
+    let temp = TempDir::new().expect("tempdir");
+    let repo_path = temp.path().join("source-repo");
+    let revision = init_local_git_repo(&repo_path);
+    let dep_spec = format!("git:{}", repo_path.display());
+
+    cmd_in_temp(&temp)
+        .args(["pull", &dep_spec])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(&revision));
+
+    let link = first_symlink_entry(&temp.path().join(".pkgrep").join("deps").join("git"));
+    let link_name = link
+        .file_name()
+        .expect("link name")
+        .to_string_lossy()
+        .to_string();
+    assert!(
+        link_name.ends_with(&revision),
+        "expected resolved link name to end with commit {revision}, got {link_name}"
+    );
+
+    let manifest_path = temp.path().join(".pkgrep").join("manifest.json");
+    let manifest = read_json(&manifest_path);
+    let manifest_key = format!("git:{}@{}", repo_path.display(), revision);
+    let entry = manifest
+        .get("entries")
+        .and_then(Value::as_object)
+        .and_then(|entries| entries.get(&manifest_key))
+        .expect("manifest entry for resolved git revision");
+    let aliases = entry
+        .get("aliases")
+        .and_then(Value::as_array)
+        .expect("manifest aliases");
+    assert!(
+        aliases
+            .iter()
+            .any(|alias| alias.as_str() == Some(dep_spec.as_str())),
+        "expected bare git dep spec alias in manifest"
+    );
+}
+
+#[test]
 fn path_returns_link_when_present() {
     let temp = TempDir::new().expect("tempdir");
     let repo_path = temp.path().join("source-repo");
@@ -467,6 +525,27 @@ fn path_returns_link_when_present() {
         .assert()
         .success()
         .stdout(predicate::str::contains(&link_display));
+}
+
+#[test]
+fn path_returns_link_for_bare_git_spec_when_single_match() {
+    let temp = TempDir::new().expect("tempdir");
+    let repo_path = temp.path().join("source-repo");
+    init_local_git_repo(&repo_path);
+    let dep_spec = format!("git:{}", repo_path.display());
+
+    cmd_in_temp(&temp)
+        .args(["pull", &dep_spec])
+        .assert()
+        .success();
+
+    let link = first_symlink_entry(&temp.path().join(".pkgrep").join("deps").join("git"));
+    let expected = link.display().to_string();
+    cmd_in_temp(&temp)
+        .args(["path", &dep_spec])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(expected));
 }
 
 #[test]
@@ -820,6 +899,35 @@ fn remove_with_yes_deletes_project_symlink() {
     let links_root = temp.path().join(".pkgrep").join("deps").join("git");
     let link = first_symlink_entry(&links_root);
     assert!(link.exists());
+
+    cmd_in_temp(&temp)
+        .args(["remove", &dep_spec, "--yes"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Remove completed: removed=1"));
+
+    assert!(
+        !link.exists(),
+        "expected link to be removed, found {}",
+        link.display()
+    );
+}
+
+#[test]
+fn remove_with_yes_deletes_project_symlink_for_bare_git_spec() {
+    let temp = TempDir::new().expect("tempdir");
+    let repo_path = temp.path().join("source-repo");
+    init_local_git_repo(&repo_path);
+    let dep_spec = format!("git:{}", repo_path.display());
+
+    cmd_in_temp(&temp)
+        .args(["pull", &dep_spec])
+        .assert()
+        .success();
+
+    let links_root = temp.path().join(".pkgrep").join("deps").join("git");
+    let link = first_symlink_entry(&links_root);
+    assert!(link.exists(), "expected link at {}", link.display());
 
     cmd_in_temp(&temp)
         .args(["remove", &dep_spec, "--yes"])
