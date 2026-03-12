@@ -5,6 +5,8 @@ use std::path::Path;
 use anyhow::Result;
 use serde::Deserialize;
 
+use crate::providers;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InstalledVersionSource {
     NodeModules,
@@ -12,6 +14,7 @@ pub enum InstalledVersionSource {
     PnpmLock,
     YarnLock,
     PackageJson,
+    UvLock,
 }
 
 impl InstalledVersionSource {
@@ -22,6 +25,7 @@ impl InstalledVersionSource {
             Self::PnpmLock => "pnpm-lock.yaml",
             Self::YarnLock => "yarn.lock",
             Self::PackageJson => "package.json",
+            Self::UvLock => "uv.lock",
         }
     }
 }
@@ -97,6 +101,18 @@ pub fn detect_installed_npm_version(
                 source: InstalledVersionSource::PackageJson,
             })
         }))
+}
+
+pub fn detect_installed_pypi_version(
+    cwd: &Path,
+    package_name: &str,
+) -> Result<Option<InstalledVersion>> {
+    Ok(
+        version_from_uv_lock(cwd, package_name).map(|version| InstalledVersion {
+            version,
+            source: InstalledVersionSource::UvLock,
+        }),
+    )
 }
 
 fn version_from_node_modules(cwd: &Path, package_name: &str) -> Option<String> {
@@ -203,6 +219,32 @@ fn version_from_package_json_maps(parsed: &PackageJson, package_name: &str) -> O
         .and_then(|version| normalize_declared_version(version))
 }
 
+fn version_from_uv_lock(cwd: &Path, package_name: &str) -> Option<String> {
+    let lock_path = cwd.join("uv.lock");
+    if !lock_path.exists() {
+        return None;
+    }
+
+    let input = providers::ProviderInputMatch {
+        provider: providers::ProviderKind::Uv,
+        path: lock_path,
+    };
+    let normalized_package_name = normalize_python_package_name(package_name);
+    let deps = providers::parse_provider_input(&input).ok()?;
+
+    deps.into_iter().find_map(|dep| {
+        if dep.ecosystem != providers::ProviderEcosystem::Pypi {
+            return None;
+        }
+
+        if normalize_python_package_name(&dep.name) != normalized_package_name {
+            return None;
+        }
+
+        Some(dep.version)
+    })
+}
+
 fn normalize_declared_version(version: &str) -> Option<String> {
     let trimmed = version.trim();
     if trimmed.is_empty() {
@@ -272,11 +314,34 @@ fn looks_like_exact_semver(input: &str) -> bool {
         && patch.chars().all(|ch| ch.is_ascii_digit())
 }
 
+fn normalize_python_package_name(input: &str) -> String {
+    let mut normalized = String::with_capacity(input.len());
+    let mut previous_was_separator = false;
+
+    for ch in input.chars() {
+        let is_separator = matches!(ch, '-' | '_' | '.');
+        if is_separator {
+            if !previous_was_separator {
+                normalized.push('-');
+            }
+            previous_was_separator = true;
+            continue;
+        }
+
+        normalized.push(ch.to_ascii_lowercase());
+        previous_was_separator = false;
+    }
+
+    normalized
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
 
-    use super::*;
+    use crate::installed_version::{
+        InstalledVersionSource, detect_installed_npm_version, detect_installed_pypi_version,
+    };
 
     #[test]
     fn prefers_node_modules_over_package_json() {
@@ -394,5 +459,57 @@ mod tests {
 
         assert!(zod.is_none());
         assert!(chalk.is_none());
+    }
+
+    #[test]
+    fn reads_uv_lock_entry_for_pypi() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            temp.path().join("uv.lock"),
+            r#"
+version = 1
+
+[[package]]
+name = "requests"
+version = "2.32.3"
+"#,
+        )
+        .expect("write uv lock");
+
+        let version =
+            detect_installed_pypi_version(temp.path(), "requests").expect("detect pypi version");
+        assert_eq!(
+            version,
+            Some(crate::installed_version::InstalledVersion {
+                version: "2.32.3".to_string(),
+                source: InstalledVersionSource::UvLock,
+            })
+        );
+    }
+
+    #[test]
+    fn normalizes_python_package_name_for_uv_lock_lookup() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            temp.path().join("uv.lock"),
+            r#"
+version = 1
+
+[[package]]
+name = "charset-normalizer"
+version = "3.4.2"
+"#,
+        )
+        .expect("write uv lock");
+
+        let version = detect_installed_pypi_version(temp.path(), "charset_normalizer")
+            .expect("detect normalized pypi version");
+        assert_eq!(
+            version,
+            Some(crate::installed_version::InstalledVersion {
+                version: "3.4.2".to_string(),
+                source: InstalledVersionSource::UvLock,
+            })
+        );
     }
 }

@@ -202,6 +202,7 @@ Current behavior:
   - npm package specs (`npm:<name>` / `npm:<name>@<version>`) resolved via npm metadata
   - versionless npm package pulls prefer a project-local version detected from `node_modules`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, or concrete `package.json` declarations before falling back to the registry latest tag
   - pypi package specs (`pypi:<name>` / `pypi:<name>@<version>`) resolved via PyPI metadata
+  - versionless pypi package pulls prefer a project-local version detected from `uv.lock` before falling back to the registry latest tag
   - shorthand package specs (`<name>` / `<name>@<version>`) when exactly one supported ecosystem is inferred from project lockfiles in cwd
 - `path` supports:
   - git-backed specs without a revision (`git:<url>`) when exactly one linked match exists
