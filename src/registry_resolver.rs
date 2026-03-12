@@ -203,7 +203,7 @@ fn pypi_repository_url(info: &PypiInfo) -> Option<String> {
         .or_else(|| info.home_page.clone())
 }
 
-fn normalize_git_repository_url(raw: &str) -> Option<String> {
+pub(crate) fn normalize_git_repository_url_for_cli(raw: &str) -> Option<String> {
     let mut url = raw.trim().to_string();
 
     if let Some(stripped) = url.strip_prefix("git+") {
@@ -233,6 +233,10 @@ fn normalize_git_repository_url(raw: &str) -> Option<String> {
         url.push_str(".git");
     }
     Some(url)
+}
+
+fn normalize_git_repository_url(raw: &str) -> Option<String> {
+    normalize_git_repository_url_for_cli(raw)
 }
 
 #[derive(Debug, Deserialize)]

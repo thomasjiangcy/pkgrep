@@ -387,6 +387,41 @@ fn pull_shorthand_infers_pypi_with_single_python_lockfile() {
 }
 
 #[test]
+fn add_shorthand_package_delegates_to_pull_resolution() {
+    let temp = TempDir::new().expect("tempdir");
+    std::fs::write(temp.path().join("package-lock.json"), "{}").expect("write package-lock");
+
+    cmd_in_temp(&temp)
+        .env("PKGREP_NPM_REGISTRY_URL", "not-a-url")
+        .args(["add", "zod"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "inferred shorthand 'zod' as 'npm:zod'",
+        ))
+        .stdout(predicate::str::contains(
+            "resolving package metadata for npm:zod",
+        ))
+        .stderr(predicate::str::contains("invalid npm registry URL"));
+}
+
+#[test]
+fn add_git_url_normalizes_to_git_dep_spec_before_pull() {
+    let temp = TempDir::new().expect("tempdir");
+
+    cmd_in_temp(&temp)
+        .args(["add", "https://example.invalid/vercel/ai"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "inferred add input 'https://example.invalid/vercel/ai' as 'git:https://example.invalid/vercel/ai.git'",
+        ))
+        .stderr(predicate::str::contains(
+            "failed to resolve default revision for https://example.invalid/vercel/ai.git",
+        ));
+}
+
+#[test]
 fn pull_without_specs_in_empty_folder_is_noop() {
     let temp = TempDir::new().expect("tempdir");
     cmd_in_temp(&temp)

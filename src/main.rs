@@ -62,6 +62,7 @@ fn log_command_start(cwd: &std::path::Path, config: &Config, command: &Command) 
 
 fn command_name(command: &Command) -> &'static str {
     match command {
+        Command::Add { .. } => "add",
         Command::Pull { .. } => "pull",
         Command::Remove { .. } => "remove",
         Command::Path { .. } => "path",

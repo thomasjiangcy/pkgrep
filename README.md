@@ -120,6 +120,7 @@ pkgrep skill install --force
 `pkgrep` currently exposes these commands:
 
 - `pkgrep pull [dep-spec ...]`
+- `pkgrep add <input ...>`
 - `pkgrep path <dep-spec>`
 - `pkgrep remove <dep-spec ...> [--yes]`
 - `pkgrep skill install [--mode project|global] [--target <skills-dir>] [--force]`
@@ -136,6 +137,10 @@ pkgrep pull git:https://github.com/facebook/react.git
 
 # Pull explicit git dependency source
 pkgrep pull git:https://github.com/facebook/react.git@v18.3.1
+
+# Add source using a loose package or GitHub repo input
+pkgrep add zod
+pkgrep add vercel/ai
 
 # Pull npm package source by package version
 pkgrep pull npm:zod@3.23.8
@@ -194,6 +199,10 @@ Current behavior:
   - npm package specs (`npm:<name>` / `npm:<name>@<version>`) resolved via npm metadata
   - pypi package specs (`pypi:<name>` / `pypi:<name>@<version>`) resolved via PyPI metadata
   - shorthand package specs (`<name>` / `<name>@<version>`) when exactly one supported ecosystem is inferred from project lockfiles in cwd
+- `add` supports:
+  - package inputs passed through to `pull` (`zod`, `zod@3.23.8`, `@types/node`)
+  - explicit dep specs (`git:...`, `npm:...`, `pypi:...`)
+  - GitHub repo shorthand or repository URLs inferred as git deps (`vercel/ai`, `https://github.com/vercel/ai`)
 - `path` supports:
   - git-backed specs without a revision (`git:<url>`) when exactly one linked match exists
   - git-backed specs (`git:<url>@<revision>` / `git:<url>#<revision>`)

@@ -1,3 +1,4 @@
+mod add;
 mod cache;
 mod path;
 mod pull;
@@ -13,6 +14,7 @@ use crate::depspec::DepSpec;
 
 pub fn execute(cwd: &Path, config: &Config, command: Command) -> anyhow::Result<()> {
     match command {
+        Command::Add { inputs } => add::run_add(cwd, config, inputs),
         Command::Pull { dep_specs } => pull::run_pull(cwd, config, dep_specs),
         Command::Remove { dep_specs, yes } => remove::run_remove(cwd, config, dep_specs, yes),
         Command::Path { dep_spec } => path::run_path(cwd, dep_spec),

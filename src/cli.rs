@@ -31,6 +31,13 @@ pub enum Command {
         dep_specs: Vec<String>,
     },
 
+    /// Add dependency source using looser package or repository inputs.
+    Add {
+        /// Inputs such as `zod`, `npm:zod`, `vercel/ai`, `https://github.com/vercel/ai`, or `git:https://...`.
+        #[arg(required = true)]
+        inputs: Vec<String>,
+    },
+
     /// Remove linked dependency sources from .pkgrep/deps.
     Remove {
         /// Dependency spec(s) to remove.
@@ -157,6 +164,17 @@ mod tests {
     fn parses_verbose_flag() {
         let cli = Cli::try_parse_from(["pkgrep", "--verbose", "pull"]).expect("parse");
         assert!(cli.verbose);
+    }
+
+    #[test]
+    fn parses_add_command() {
+        let cli = Cli::try_parse_from(["pkgrep", "add", "zod", "vercel/ai"]).expect("parse");
+        match cli.command {
+            Command::Add { inputs } => {
+                assert_eq!(inputs, vec!["zod".to_string(), "vercel/ai".to_string()]);
+            }
+            _ => panic!("unexpected command"),
+        }
     }
 
     #[test]
