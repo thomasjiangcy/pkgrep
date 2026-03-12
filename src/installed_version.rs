@@ -130,7 +130,9 @@ pub fn detect_installed_crates_version(
         provider: providers::ProviderKind::Cargo,
         path: lock_path,
     })
-    .map_err(|err| anyhow::anyhow!("failed to parse Cargo.lock for crates version detection: {err}"))?;
+    .map_err(|err| {
+        anyhow::anyhow!("failed to parse Cargo.lock for crates version detection: {err}")
+    })?;
 
     let normalized_package_name = normalize_crates_package_name(package_name);
     let versions = deps
