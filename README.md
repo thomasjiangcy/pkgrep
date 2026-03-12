@@ -144,6 +144,9 @@ pkgrep pull zod@3.23.8
 # Pull npm package source using registry latest tag
 pkgrep pull npm:react
 
+# Pull npm package source using the installed project version when available
+pkgrep pull react
+
 # Pull PyPI package source by package version
 pkgrep pull pypi:requests@2.32.3
 
@@ -188,6 +191,7 @@ Current behavior:
 - `pull` supports:
   - explicit git specs (`git:<url>@<revision>` or `git:<url>#<revision>`)
   - npm package specs (`npm:<name>` / `npm:<name>@<version>`) resolved via npm metadata
+  - versionless npm package pulls prefer a project-local version detected from `node_modules`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, or concrete `package.json` declarations before falling back to the registry latest tag
   - pypi package specs (`pypi:<name>` / `pypi:<name>@<version>`) resolved via PyPI metadata
   - shorthand package specs (`<name>` / `<name>@<version>`) when exactly one supported ecosystem is inferred from project lockfiles in cwd
 - `path` supports:
