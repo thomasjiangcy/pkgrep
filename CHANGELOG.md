@@ -7,6 +7,19 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-03-30
+
+### Changed
+
+- Bundled `pkgrep-usage` guidance now treats linked `.pkgrep` dependency paths as internal details and tells agents to report dependency findings with inline snippets or summaries instead of opaque local path references.
+- `pkgrep init` now adds the same user-facing guidance to generated `AGENTS.md` instructions.
+- README clarifies that `pkgrep skill install --force` replaces an existing install with the latest bundled skill copy.
+
+### Dependencies
+
+- Updated `clap`, `tracing-subscriber`, `tar`, and `testcontainers`.
+- Updated release workflow actions `Swatinem/rust-cache` and `softprops/action-gh-release`.
+
 ## [0.5.0] - 2026-03-13
 
 ### Added
@@ -78,7 +91,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Git-only source retrieval pipeline with npm/PyPI dependency resolution mapped to upstream git repos.
 - Remote cache support via object stores (`s3`, `azure_blob`) with hydrate/publish flow.
 
-[Unreleased]: https://github.com/thomasjiangcy/pkgrep/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/thomasjiangcy/pkgrep/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/thomasjiangcy/pkgrep/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/thomasjiangcy/pkgrep/compare/v0.3.0...v0.3.1

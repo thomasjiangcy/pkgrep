@@ -109,7 +109,7 @@ Install into a custom skills directory:
 pkgrep skill install --target /path/to/skills
 ```
 
-Replace an existing install:
+Replace an existing install with the latest bundled copy:
 
 ```bash
 pkgrep skill install --force

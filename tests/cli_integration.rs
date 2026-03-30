@@ -251,6 +251,7 @@ fn init_creates_gitignore_agents_and_project_skill() {
     let agents = std::fs::read_to_string(temp.path().join("AGENTS.md")).expect("read AGENTS.md");
     assert!(agents.contains("## pkgrep"));
     assert!(agents.contains("pkgrep list"));
+    assert!(agents.contains("quote or summarize the relevant code inline"));
 
     let skill = temp
         .path()
@@ -263,6 +264,9 @@ fn init_creates_gitignore_agents_and_project_skill() {
         "expected installed skill at {}",
         skill.display()
     );
+    let skill_contents = std::fs::read_to_string(&skill).expect("read installed skill");
+    assert!(skill_contents.contains("Treat linked dependency checkouts under `.pkgrep/`"));
+    assert!(skill_contents.contains("prefer inline snippets"));
 }
 
 #[test]

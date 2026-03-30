@@ -111,6 +111,7 @@ fn agents_section() -> &'static str {
         "Dependency source links are stored under `.pkgrep/deps/`.\n\n",
         "Use `pkgrep pull <dep-spec>` to link dependency source into this project.\n",
         "Use `pkgrep list` to inspect which dependency sources are currently linked.\n",
+        "When reporting findings from pulled dependency code, quote or summarize the relevant code inline instead of only referencing local `.pkgrep` paths.\n",
         "Use the bundled `pkgrep-usage` skill from `.agents/skills/pkgrep-usage/` when traversing dependency source.\n",
         "<!-- pkgrep:init:end -->"
     )

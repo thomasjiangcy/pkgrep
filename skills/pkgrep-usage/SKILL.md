@@ -16,7 +16,7 @@ Use this skill when a user asks to inspect dependency source code in a project v
 ## Core Workflow
 
 1. If dependency is known, run `pkgrep pull <dep-spec>`.
-2. If dependency source path is needed, run `pkgrep path <dep-spec>`.
+2. If you need the local checkout path for your own inspection, run `pkgrep path <dep-spec>`.
 3. If the project is the source of truth, run `pkgrep pull` (auto lockfile detection).
 4. For targeted cleanup, run `pkgrep remove <dep-spec ...> --yes`.
 5. For cache cleanup, run `pkgrep cache prune` (dry-run) before `pkgrep cache prune --yes`.
@@ -33,5 +33,12 @@ Use this skill when a user asks to inspect dependency source code in a project v
 - Do not run destructive commands without explicit user confirmation (`--yes`).
 - Prefer showing dry-run output before prune.
 - If shorthand inference is ambiguous, switch to explicit ecosystem specs.
+
+## User-Facing Communication
+
+- Treat linked dependency checkouts under `.pkgrep/` as internal workspace details that may not be directly useful to the user.
+- Use `pkgrep path` when you need to inspect code locally, but do not point the user at those local paths unless they explicitly ask for them.
+- When reporting findings from pulled dependency code, prefer inline snippets, short quoted excerpts, or paraphrased logic summaries over file path and line-number references alone.
+- Anchor explanations in user-meaningful identifiers such as package names, modules, classes, functions, or exported symbols.
 
 For examples and troubleshooting, read `references/commands.md`.

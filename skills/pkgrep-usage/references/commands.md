@@ -39,6 +39,8 @@ pkgrep pull
 pkgrep path git:https://github.com/facebook/react.git@v18.3.1
 ```
 
+Use `pkgrep path` for local inspection. In user-facing responses, prefer citing the relevant package/module/function and include the needed snippet or summary inline instead of only returning the local `.pkgrep/...` path.
+
 ## Remove Links
 
 ```bash
