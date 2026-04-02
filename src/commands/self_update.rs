@@ -251,7 +251,14 @@ fn is_valid_sha256_hex(value: &str) -> bool {
 
 fn compute_sha256_hex(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
-    format!("{:x}", digest)
+    let mut encoded = String::with_capacity(digest.len() * 2);
+
+    for byte in digest {
+        encoded.push(char::from(b"0123456789abcdef"[(byte >> 4) as usize]));
+        encoded.push(char::from(b"0123456789abcdef"[(byte & 0x0f) as usize]));
+    }
+
+    encoded
 }
 
 fn extract_binary_from_archive(archive_bytes: &[u8], binary_name: &str) -> anyhow::Result<Vec<u8>> {
