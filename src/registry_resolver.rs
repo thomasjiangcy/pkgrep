@@ -12,9 +12,16 @@ const DEFAULT_NPM_REGISTRY_BASE: &str = "https://registry.npmjs.org";
 const DEFAULT_PYPI_REGISTRY_BASE: &str = "https://pypi.org/pypi";
 const DEFAULT_CRATES_REGISTRY_BASE: &str = "https://crates.io/api/v1/crates";
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RequestedRevisionSource {
+    ExactMetadata,
+    VersionDerived,
+}
+
 pub struct RegistryResolution {
     pub target: GitPullTarget,
     pub package_version: String,
+    pub requested_revision_source: RequestedRevisionSource,
 }
 
 pub fn resolve_registry_spec(spec: DepSpec) -> anyhow::Result<RegistryResolution> {
@@ -93,9 +100,16 @@ fn resolve_npm(spec: DepSpec) -> anyhow::Result<RegistryResolution> {
         )
     })?;
 
+    let requested_revision_source = npm_requested_revision_source(&version_entry);
     let requested_revision = version_entry
         .git_head
-        .or_else(|| version_entry.dist.and_then(|dist| dist.git_head))
+        .clone()
+        .or_else(|| {
+            version_entry
+                .dist
+                .as_ref()
+                .and_then(|dist| dist.git_head.clone())
+        })
         .unwrap_or_else(|| selected_version.clone());
 
     Ok(RegistryResolution {
@@ -106,6 +120,7 @@ fn resolve_npm(spec: DepSpec) -> anyhow::Result<RegistryResolution> {
             requested_revision,
         },
         package_version: selected_version,
+        requested_revision_source,
     })
 }
 
@@ -155,6 +170,7 @@ fn resolve_pypi(spec: DepSpec) -> anyhow::Result<RegistryResolution> {
             requested_revision: selected_version.clone(),
         },
         package_version: selected_version,
+        requested_revision_source: RequestedRevisionSource::VersionDerived,
     })
 }
 
@@ -238,6 +254,7 @@ fn resolve_crates(spec: DepSpec) -> anyhow::Result<RegistryResolution> {
             requested_revision: selected_version.clone(),
         },
         package_version: selected_version,
+        requested_revision_source: RequestedRevisionSource::VersionDerived,
     })
 }
 
@@ -330,6 +347,20 @@ fn normalize_git_repository_url(raw: &str) -> Option<String> {
         url.push_str(".git");
     }
     Some(url)
+}
+
+fn npm_requested_revision_source(version_entry: &NpmVersionEntry) -> RequestedRevisionSource {
+    if version_entry.git_head.is_some()
+        || version_entry
+            .dist
+            .as_ref()
+            .and_then(|dist| dist.git_head.as_ref())
+            .is_some()
+    {
+        RequestedRevisionSource::ExactMetadata
+    } else {
+        RequestedRevisionSource::VersionDerived
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -439,5 +470,33 @@ mod tests {
 
         let url = pypi_repository_url(&info).expect("source url");
         assert_eq!(url, "https://github.com/psf/requests");
+    }
+
+    #[test]
+    fn npm_revision_source_is_exact_when_git_head_present() {
+        let entry = NpmVersionEntry {
+            repository: None,
+            git_head: Some(String::from("deadbeef")),
+            dist: None,
+        };
+
+        assert_eq!(
+            npm_requested_revision_source(&entry),
+            RequestedRevisionSource::ExactMetadata
+        );
+    }
+
+    #[test]
+    fn npm_revision_source_is_version_derived_without_git_head() {
+        let entry = NpmVersionEntry {
+            repository: None,
+            git_head: None,
+            dist: None,
+        };
+
+        assert_eq!(
+            npm_requested_revision_source(&entry),
+            RequestedRevisionSource::VersionDerived
+        );
     }
 }

@@ -7,6 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-13
+
+### Added
+
+- `pkgrep pull --fallback-repo-head` to explicitly clone a dependency repository's default branch when package metadata cannot be mapped to an exact upstream git revision.
+
+### Changed
+
+- `pkgrep pull` now fails with a targeted retry hint when npm metadata resolves to a repository URL but does not provide a deterministic source revision, including the exact `--fallback-repo-head` command to retry.
+
 ## [0.5.1] - 2026-03-30
 
 ### Changed
@@ -91,7 +101,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Git-only source retrieval pipeline with npm/PyPI dependency resolution mapped to upstream git repos.
 - Remote cache support via object stores (`s3`, `azure_blob`) with hydrate/publish flow.
 
-[Unreleased]: https://github.com/thomasjiangcy/pkgrep/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/thomasjiangcy/pkgrep/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/thomasjiangcy/pkgrep/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.3.1...v0.4.0

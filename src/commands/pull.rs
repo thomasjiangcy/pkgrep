@@ -10,6 +10,7 @@ use crate::index;
 use crate::installed_version;
 use crate::providers;
 use crate::registry_resolver;
+use crate::registry_resolver::RequestedRevisionSource;
 use crate::remote_cache;
 use crate::source;
 
@@ -18,6 +19,7 @@ pub(super) struct PullTargetResolution {
     pub target: source::GitPullTarget,
     pub aliases: BTreeSet<String>,
     pub registry_refs: BTreeSet<index::RegistrySpecRef>,
+    pub repo_head_fallback_context: Option<RepoHeadFallbackContext>,
 }
 
 #[derive(Clone, Debug)]
@@ -26,6 +28,12 @@ pub(super) struct PullResolution {
     pub discovered_lockfiles: usize,
     pub discovered_dependencies: usize,
     pub skipped_non_git_dependencies: usize,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct RepoHeadFallbackContext {
+    pub suggested_spec: String,
+    pub package_label: String,
 }
 
 pub(super) fn resolve_pull_resolution(
@@ -44,7 +52,12 @@ pub(super) fn resolve_pull_resolution(
     }
 }
 
-pub(super) fn run_pull(cwd: &Path, config: &Config, dep_specs: Vec<String>) -> anyhow::Result<()> {
+pub(super) fn run_pull(
+    cwd: &Path,
+    config: &Config,
+    dep_specs: Vec<String>,
+    fallback_repo_head: bool,
+) -> anyhow::Result<()> {
     let resolved = resolve_pull_resolution(cwd, &dep_specs)?;
 
     if dep_specs.is_empty() {
@@ -126,76 +139,32 @@ pub(super) fn run_pull(cwd: &Path, config: &Config, dep_specs: Vec<String>) -> a
             target.requested_revision
         );
 
-        let materialized = if let Some(client) = &remote_cache_client {
-            println!("  -> checking remote cache");
-            match client
-                .hydrate_git_source(cwd, config, target)
-                .with_context(|| {
-                    format!(
-                        "failed to hydrate git source {}@{} from remote cache",
-                        target.git_url, target.requested_revision
-                    )
-                })? {
-                remote_cache::HydrateOutcome::Hydrated(materialized)
-                | remote_cache::HydrateOutcome::AlreadyPresent(materialized) => {
-                    hydrated_from_remote += 1;
-                    println!("  -> hydrated from remote cache");
-                    materialized
-                }
-                remote_cache::HydrateOutcome::NotFound => {
-                    println!("  -> remote cache miss; resolving via local git mirror");
-                    let materialized = source::materialize_git_source(cwd, config, target)
-                        .with_context(|| {
-                            format!(
-                                "failed to materialize git source {}@{}",
-                                target.git_url, target.requested_revision
-                            )
-                        })?;
-                    resolved_via_git += 1;
-                    if materialized.git_fetch_performed {
-                        fetched_from_git += 1;
-                        println!("  -> fetched requested revision from origin");
-                    } else {
-                        println!("  -> reused requested revision from local mirror");
-                    }
-
-                    match client.publish_git_source(target, &materialized) {
-                        Ok(()) => {
-                            published_to_remote += 1;
-                            println!("  -> published to remote cache");
-                        }
-                        Err(err) => {
-                            warn!(
-                                git_url = %target.git_url,
-                                requested_revision = %target.requested_revision,
-                                error = %err,
-                                "failed to publish source to remote cache after git fetch"
-                            );
-                            println!("  -> warning: publish to remote cache failed");
-                        }
-                    }
-
-                    materialized
-                }
-            }
-        } else {
-            println!("  -> resolving via local git mirror");
-            let materialized =
-                source::materialize_git_source(cwd, config, target).with_context(|| {
-                    format!(
-                        "failed to materialize git source {}@{}",
-                        target.git_url, target.requested_revision
-                    )
-                })?;
+        let (
+            effective_target,
+            materialized,
+            used_remote_cache,
+            resolved_from_git,
+            fetched_from_origin,
+            published,
+        ) = resolve_materialized_pull_target(
+            cwd,
+            config,
+            remote_cache_client.as_ref(),
+            target_resolution,
+            fallback_repo_head,
+        )?;
+        if used_remote_cache {
+            hydrated_from_remote += 1;
+        }
+        if resolved_from_git {
             resolved_via_git += 1;
-            if materialized.git_fetch_performed {
-                fetched_from_git += 1;
-                println!("  -> fetched requested revision from origin");
-            } else {
-                println!("  -> reused requested revision from local mirror");
-            }
-            materialized
-        };
+        }
+        if fetched_from_origin {
+            fetched_from_git += 1;
+        }
+        if published {
+            published_to_remote += 1;
+        }
 
         let link_metadata = index::LinkRecordMetadata {
             aliases: target_resolution.aliases.clone(),
@@ -205,13 +174,13 @@ pub(super) fn run_pull(cwd: &Path, config: &Config, dep_specs: Vec<String>) -> a
         if let Err(err) = index::record_link_with_metadata(
             cwd,
             &cache_root,
-            target,
+            &effective_target,
             &materialized,
             &link_metadata,
         ) {
             warn!(
-                git_url = %target.git_url,
-                requested_revision = %target.requested_revision,
+                git_url = %effective_target.git_url,
+                requested_revision = %effective_target.requested_revision,
                 error = %err,
                 "failed to update local index files after link"
             );
@@ -219,8 +188,8 @@ pub(super) fn run_pull(cwd: &Path, config: &Config, dep_specs: Vec<String>) -> a
         println!("  -> linked {}", materialized.project_link_path.display());
 
         info!(
-            git_url = %target.git_url,
-            requested_revision = %target.requested_revision,
+            git_url = %effective_target.git_url,
+            requested_revision = %effective_target.requested_revision,
             source_fingerprint = %materialized.source_fingerprint,
             cache_key = %materialized.cache_key,
             checkout_path = %materialized.checkout_path.display(),
@@ -282,6 +251,7 @@ fn resolve_pull_targets_from_specs(
                     },
                     aliases,
                     registry_refs: BTreeSet::new(),
+                    repo_head_fallback_context: None,
                 });
             }
             SourceKind::Registry => {
@@ -386,11 +356,13 @@ fn resolve_pull_targets_from_specs(
                 ) {
                     registry_refs.insert(registry_ref);
                 }
+                let repo_head_fallback_context = repo_head_fallback_context(&resolved);
 
                 targets.push(PullTargetResolution {
                     target: resolved.target,
                     aliases,
                     registry_refs,
+                    repo_head_fallback_context,
                 });
             }
         }
@@ -530,6 +502,7 @@ fn resolve_pull_targets_from_project(cwd: &Path) -> anyhow::Result<PullResolutio
                 },
                 aliases,
                 registry_refs,
+                repo_head_fallback_context: None,
             });
         }
     }
@@ -558,6 +531,9 @@ fn deduplicate_pull_targets(targets: Vec<PullTargetResolution>) -> Vec<PullTarge
             if let Some(existing_target) = deduped.get_mut(existing_index) {
                 existing_target.aliases.extend(target.aliases);
                 existing_target.registry_refs.extend(target.registry_refs);
+                if existing_target.repo_head_fallback_context.is_none() {
+                    existing_target.repo_head_fallback_context = target.repo_head_fallback_context;
+                }
             }
             continue;
         }
@@ -567,6 +543,174 @@ fn deduplicate_pull_targets(targets: Vec<PullTargetResolution>) -> Vec<PullTarge
     }
 
     deduped
+}
+
+fn repo_head_fallback_context(
+    resolved: &registry_resolver::RegistryResolution,
+) -> Option<RepoHeadFallbackContext> {
+    if resolved.requested_revision_source == RequestedRevisionSource::ExactMetadata {
+        return None;
+    }
+
+    let spec = format!(
+        "{}:{}@{}",
+        resolved.target.ecosystem.as_str(),
+        resolved.target.locator,
+        resolved.package_version
+    );
+
+    Some(RepoHeadFallbackContext {
+        suggested_spec: spec.clone(),
+        package_label: spec,
+    })
+}
+
+fn resolve_materialized_pull_target(
+    cwd: &Path,
+    config: &Config,
+    remote_cache_client: Option<&remote_cache::RemoteCacheClient>,
+    target_resolution: &PullTargetResolution,
+    fallback_repo_head: bool,
+) -> anyhow::Result<(
+    source::GitPullTarget,
+    source::MaterializedSource,
+    bool,
+    bool,
+    bool,
+    bool,
+)> {
+    let target = &target_resolution.target;
+
+    if let Some(client) = remote_cache_client {
+        println!("  -> checking remote cache");
+        match client
+            .hydrate_git_source(cwd, config, target)
+            .with_context(|| {
+                format!(
+                    "failed to hydrate git source {}@{} from remote cache",
+                    target.git_url, target.requested_revision
+                )
+            })? {
+            remote_cache::HydrateOutcome::Hydrated(materialized)
+            | remote_cache::HydrateOutcome::AlreadyPresent(materialized) => {
+                println!("  -> hydrated from remote cache");
+                return Ok((target.clone(), materialized, true, false, false, false));
+            }
+            remote_cache::HydrateOutcome::NotFound => {
+                println!("  -> remote cache miss; resolving via local git mirror");
+            }
+        }
+    } else {
+        println!("  -> resolving via local git mirror");
+    }
+
+    let (effective_target, materialized) =
+        materialize_pull_target(cwd, config, target_resolution, fallback_repo_head)?;
+
+    if materialized.git_fetch_performed {
+        println!("  -> fetched requested revision from origin");
+    } else {
+        println!("  -> reused requested revision from local mirror");
+    }
+
+    let mut published = false;
+    if let Some(client) = remote_cache_client {
+        match client.publish_git_source(&effective_target, &materialized) {
+            Ok(()) => {
+                published = true;
+                println!("  -> published to remote cache");
+            }
+            Err(err) => {
+                warn!(
+                    git_url = %effective_target.git_url,
+                    requested_revision = %effective_target.requested_revision,
+                    error = %err,
+                    "failed to publish source to remote cache after git fetch"
+                );
+                println!("  -> warning: publish to remote cache failed");
+            }
+        }
+    }
+
+    let fetched_from_origin = materialized.git_fetch_performed;
+    Ok((
+        effective_target,
+        materialized,
+        false,
+        true,
+        fetched_from_origin,
+        published,
+    ))
+}
+
+fn materialize_pull_target(
+    cwd: &Path,
+    config: &Config,
+    target_resolution: &PullTargetResolution,
+    fallback_repo_head: bool,
+) -> anyhow::Result<(source::GitPullTarget, source::MaterializedSource)> {
+    let target = &target_resolution.target;
+    match source::materialize_git_source(cwd, config, target) {
+        Ok(materialized) => Ok((target.clone(), materialized)),
+        Err(err) => try_repo_head_fallback(cwd, config, target_resolution, fallback_repo_head, err),
+    }
+}
+
+fn try_repo_head_fallback(
+    cwd: &Path,
+    config: &Config,
+    target_resolution: &PullTargetResolution,
+    fallback_repo_head: bool,
+    source_error: anyhow::Error,
+) -> anyhow::Result<(source::GitPullTarget, source::MaterializedSource)> {
+    let target = &target_resolution.target;
+    let Some(context) = &target_resolution.repo_head_fallback_context else {
+        return Err(source_error).with_context(|| {
+            format!(
+                "failed to materialize git source {}@{}",
+                target.git_url, target.requested_revision
+            )
+        });
+    };
+
+    if !fallback_repo_head {
+        return Err(source_error).context(repo_head_fallback_guidance(context, target));
+    }
+
+    println!(
+        "  -> exact source revision unavailable; falling back to repository default branch because --fallback-repo-head was set"
+    );
+    let resolved = source::resolve_default_remote_revision(&target.git_url)
+        .with_context(|| format!("failed to resolve default branch for {}", target.git_url))?;
+    println!(
+        "  -> resolved {} default branch {} -> {}",
+        target.git_url, resolved.default_branch_ref, resolved.commit_id
+    );
+
+    let fallback_target = source::GitPullTarget {
+        ecosystem: target.ecosystem.clone(),
+        locator: target.locator.clone(),
+        git_url: target.git_url.clone(),
+        requested_revision: resolved.commit_id,
+    };
+    let materialized =
+        source::materialize_git_source(cwd, config, &fallback_target).with_context(|| {
+            format!(
+                "failed to materialize repository default branch for {}",
+                context.package_label
+            )
+        })?;
+    Ok((fallback_target, materialized))
+}
+
+fn repo_head_fallback_guidance(
+    context: &RepoHeadFallbackContext,
+    target: &source::GitPullTarget,
+) -> String {
+    format!(
+        "package metadata for '{}' resolved repository '{}' but did not provide an exact git revision; pkgrep tried the version-derived revision '{}' and could not find it upstream. Re-run with `pkgrep pull --fallback-repo-head {}` to clone the repository default branch instead",
+        context.package_label, target.git_url, target.requested_revision, context.suggested_spec
+    )
 }
 
 fn registry_ref(
@@ -603,6 +747,7 @@ fn ecosystem_from_provider_kind(kind: &providers::ProviderKind) -> &'static str 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::source::GitPullTarget;
 
     #[test]
     fn explicit_scheme_detection() {
@@ -682,5 +827,25 @@ mod tests {
             normalize_explicit_dep_specs_for_pull(temp.path(), &[String::from("serde")])
                 .expect("normalize shorthand");
         assert_eq!(normalized, vec![String::from("crates:serde")]);
+    }
+
+    #[test]
+    fn repo_head_fallback_guidance_mentions_flag_and_spec() {
+        let context = RepoHeadFallbackContext {
+            suggested_spec: String::from("npm:@types/node@25.6.0"),
+            package_label: String::from("npm:@types/node@25.6.0"),
+        };
+        let target = GitPullTarget {
+            ecosystem: Ecosystem::Npm,
+            locator: String::from("@types/node"),
+            git_url: String::from("https://github.com/DefinitelyTyped/DefinitelyTyped.git"),
+            requested_revision: String::from("25.6.0"),
+        };
+
+        let guidance = repo_head_fallback_guidance(&context, &target);
+
+        assert!(guidance.contains("--fallback-repo-head"));
+        assert!(guidance.contains("npm:@types/node@25.6.0"));
+        assert!(guidance.contains("25.6.0"));
     }
 }

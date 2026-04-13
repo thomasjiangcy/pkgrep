@@ -126,6 +126,7 @@ pkgrep init
 `pkgrep` currently exposes these commands:
 
 - `pkgrep pull [dep-spec ...]`
+- `pkgrep pull --fallback-repo-head [dep-spec ...]`
 - `pkgrep list [--json]`
 - `pkgrep init`
 - `pkgrep path <dep-spec>`
@@ -147,6 +148,9 @@ pkgrep pull git:https://github.com/facebook/react.git@v18.3.1
 
 # Pull npm package source by package version
 pkgrep pull npm:zod@3.23.8
+
+# If exact source mapping fails, explicitly fall back to the repo default branch
+pkgrep pull --fallback-repo-head npm:@types/node@25.6.0
 
 # Pull crates.io package source by package version
 pkgrep pull crates:serde@1.0.228
@@ -213,6 +217,7 @@ Current behavior:
   - explicit git specs without a revision (`git:<url>`), resolved to the remote default-branch commit at pull time
   - explicit git specs (`git:<url>@<revision>` or `git:<url>#<revision>`)
   - npm package specs (`npm:<name>` / `npm:<name>@<version>`) resolved via npm metadata
+  - `pull --fallback-repo-head ...` as an explicit escape hatch when a package resolves to a repository URL but pkgrep cannot determine an exact upstream git revision
   - versionless npm package pulls prefer a project-local version detected from `node_modules`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, or concrete `package.json` declarations before falling back to the registry latest tag
   - pypi package specs (`pypi:<name>` / `pypi:<name>@<version>`) resolved via PyPI metadata
   - versionless pypi package pulls prefer a project-local version detected from `uv.lock` before falling back to the registry latest tag

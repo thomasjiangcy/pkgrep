@@ -21,6 +21,11 @@ pub struct Cli {
 pub enum Command {
     /// Pull dependency source code into cache and link into the project.
     Pull {
+        /// If an exact source revision cannot be determined from package metadata,
+        /// fall back to the repository default branch HEAD.
+        #[arg(long)]
+        fallback_repo_head: bool,
+
         /// Dependency spec(s), for example:
         /// git:https://github.com/org/repo.git
         /// git:https://github.com/org/repo.git@<rev>
@@ -168,6 +173,22 @@ mod tests {
     fn parses_verbose_flag() {
         let cli = Cli::try_parse_from(["pkgrep", "--verbose", "pull"]).expect("parse");
         assert!(cli.verbose);
+    }
+
+    #[test]
+    fn parses_pull_with_fallback_repo_head_flag() {
+        let cli = Cli::try_parse_from(["pkgrep", "pull", "--fallback-repo-head", "npm:zod"])
+            .expect("parse");
+        match cli.command {
+            Command::Pull {
+                fallback_repo_head,
+                dep_specs,
+            } => {
+                assert!(fallback_repo_head);
+                assert_eq!(dep_specs, vec![String::from("npm:zod")]);
+            }
+            _ => panic!("unexpected command"),
+        }
     }
 
     #[test]

@@ -15,7 +15,10 @@ use crate::depspec::DepSpec;
 
 pub fn execute(cwd: &Path, config: &Config, command: Command) -> anyhow::Result<()> {
     match command {
-        Command::Pull { dep_specs } => pull::run_pull(cwd, config, dep_specs),
+        Command::Pull {
+            fallback_repo_head,
+            dep_specs,
+        } => pull::run_pull(cwd, config, dep_specs, fallback_repo_head),
         Command::Remove { dep_specs, yes } => remove::run_remove(cwd, config, dep_specs, yes),
         Command::Path { dep_spec } => path::run_path(cwd, dep_spec),
         Command::List { json } => list::run_list(cwd, json),
