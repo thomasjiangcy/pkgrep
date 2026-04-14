@@ -119,7 +119,6 @@ mod tests {
         PartialConfig {
             cache_dir,
             worker_pool_size,
-            ..PartialConfig::default()
         }
     }
 
