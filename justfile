@@ -27,12 +27,4 @@ hooks-install:
 hooks-run:
     lefthook run pre-commit && lefthook run pre-push
 
-test-remote-s3:
-    cargo test --test remote_cache_e2e e2e_s3_remote_roundtrip -- --ignored --nocapture
-
-test-remote-azure:
-    cargo test --test remote_cache_e2e e2e_azure_remote_roundtrip -- --ignored --nocapture
-
-test-remote-all: test-remote-s3 test-remote-azure
-
 ci: fmt-check lint test-no-mocks test

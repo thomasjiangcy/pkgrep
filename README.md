@@ -24,7 +24,6 @@ That creates a gap for agent-assisted development:
 
 - 📦 Centrally managed dependency source cache with symlinked project links for efficient storage reuse
 - 🤖 Non-interactive CLI by default for agent-friendly automation
-- ☁️ Remote cache support via object stores (`s3`, `azure_blob`)
 
 ## Installation
 
@@ -133,7 +132,6 @@ pkgrep init
 - `pkgrep remove <dep-spec ...> [--yes]`
 - `pkgrep skill install [--mode project|global] [--target <skills-dir>] [--force]`
 - `pkgrep self update`
-- `pkgrep cache hydrate [dep-spec ...]`
 - `pkgrep cache clean [--yes]`
 - `pkgrep cache prune [--yes]`
 
@@ -195,9 +193,6 @@ pkgrep list --json
 # Remove project links (requires --yes)
 pkgrep remove git:https://github.com/facebook/react.git@v18.3.1 --yes
 
-# Hydrate local cache from remote object store
-pkgrep cache hydrate git:https://github.com/facebook/react.git@v18.3.1
-
 # Clean local cache (requires --yes)
 pkgrep cache clean --yes
 
@@ -212,7 +207,6 @@ pkgrep self update
 Current behavior:
 
 - `remove`, `cache clean`, and `cache prune` are no-op unless `--yes` is provided.
-- `cache hydrate` requires a remote backend (`s3` or `azure_blob`) and only hydrates git-backed sources from object storage.
 - `pull` supports:
   - explicit git specs without a revision (`git:<url>`), resolved to the remote default-branch commit at pull time
   - explicit git specs (`git:<url>@<revision>` or `git:<url>#<revision>`)
@@ -232,7 +226,6 @@ Current behavior:
   - for legacy manifest entries without package-version metadata, versioned npm/pypi/crates lookups may require re-running `pkgrep pull <spec>` to backfill metadata
 - Git dep specs accept `git:<url>`, `git:<url>@<revision>`, and `git:<url>#<revision>`.
 - Project links are human-readable under `.pkgrep/deps/...`; internal cache keys remain normalized for safety/determinism.
-- With remote backend configured, `pull` attempts remote hydrate first; if missing, it fetches from Git and then publishes to remote cache.
 - `cache prune` reconciles stale project references from the global index, then prunes unreferenced local checkouts and git mirrors.
 - `cache prune` dry-run output shows human-readable dependency identities plus filesystem paths.
 - `self update` is disabled for Homebrew-managed installs; use `brew upgrade pkgrep` in that case.
@@ -287,32 +280,9 @@ Config precedence:
 Example `pkgrep.toml`:
 
 ```toml
-backend = "s3" # local | s3 | azure_blob
 cache_dir = "/tmp/pkgrep-cache"
 worker_pool_size = 8
-
-[object_store]
-auth_mode = "direct" # direct | proxy
-endpoint = "http://127.0.0.1:8333"
-bucket = "pkgrep-cache"
-prefix = "v1/dev"
-proxy_identity_header = "x-workload-jwt" # proxy mode only
 ```
-
-Azure note:
-
-- `object_store.bucket` maps to Azure Blob **container** name for `backend = "azure_blob"`.
-- Azure Blob is not S3-compatible; use Azurite for local Azure testing.
-
-Object store credential env vars currently supported:
-
-- S3: `PKGREP_OBJECT_STORE_ACCESS_KEY_ID`, `PKGREP_OBJECT_STORE_SECRET_ACCESS_KEY`, `PKGREP_OBJECT_STORE_SESSION_TOKEN`, optional `PKGREP_OBJECT_STORE_REGION`.
-- Azure Blob: `PKGREP_AZURE_ACCOUNT_NAME`, `PKGREP_AZURE_ACCOUNT_KEY` (or `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_KEY`).
-
-Proxy mode:
-
-- `auth_mode = "proxy"` can be used when outbound requests are routed through an egress/signing proxy.
-- Current implementation does not add custom auth headers itself; proxy integration should inject auth at the network/proxy layer before requests reach object storage.
 
 Worker pool default:
 
@@ -379,39 +349,6 @@ Required repo settings for Homebrew publish:
 
 - Repository variable: `HOMEBREW_TAP_REPOSITORY` (example: `owner/homebrew-tap`)
 - Repository secret: `HOMEBREW_TAP_GITHUB_TOKEN` (token with push access to the tap repo)
-
-### Remote E2E tests (Docker + testcontainers)
-
-Remote cache E2E tests now self-manage infrastructure with `testcontainers`:
-
-- SeaweedFS + `aws-cli` bucket bootstrap for S3 tests
-- Azurite + `azure-cli` container bootstrap for Azure Blob tests
-
-Requirements:
-
-- Docker daemon available and running
-
-Run remote S3 E2E:
-
-```bash
-just test-remote-s3
-```
-
-Run remote Azure Blob E2E:
-
-```bash
-just test-remote-azure
-```
-
-Run both remote E2E suites:
-
-```bash
-just test-remote-all
-```
-
-Note:
-
-- `tests/remote_cache_e2e.rs` reads the SeaweedFS S3 identity fixture from `.dev/seaweedfs/s3.json`.
 
 ## License
 

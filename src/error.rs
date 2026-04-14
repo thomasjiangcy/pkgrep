@@ -7,11 +7,8 @@ pub enum PkgrepError {
     #[error("invalid worker_pool_size: {0} (must be >= 1)")]
     InvalidWorkerPoolSize(usize),
 
-    #[error("invalid backend: {0} (expected one of: local, s3, azure_blob, agentfs)")]
+    #[error("invalid backend: {0} (expected one of: local, agentfs)")]
     InvalidBackend(String),
-
-    #[error("invalid object store auth mode: {0} (expected one of: direct, proxy)")]
-    InvalidObjectStoreAuthMode(String),
 
     #[error("failed to read config file {path}: {source}")]
     ConfigRead {

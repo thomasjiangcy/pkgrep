@@ -8,15 +8,14 @@ mod installed_version;
 mod logging;
 mod providers;
 mod registry_resolver;
-mod remote_cache;
 mod source;
 
 use anyhow::Context;
 use clap::Parser;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 use crate::cli::{CacheCommand, Cli, Command, SelfCommand, SkillCommand};
-use crate::config::{Config, ObjectStoreAuthMode};
+use crate::config::Config;
 
 fn main() {
     if let Err(err) = run() {
@@ -46,19 +45,6 @@ fn log_command_start(cwd: &std::path::Path, config: &Config, command: &Command) 
         worker_pool_size = config.worker_pool_size,
         "starting command"
     );
-
-    debug!(
-        object_store_bucket = config.object_store.bucket.as_deref().unwrap_or("<unset>"),
-        object_store_prefix = config.object_store.prefix.as_deref().unwrap_or("<unset>"),
-        object_store_endpoint = config.object_store.endpoint.as_deref().unwrap_or("<unset>"),
-        object_store_auth_mode = object_store_auth_mode(config),
-        object_store_proxy_identity_header = config
-            .object_store
-            .proxy_identity_header
-            .as_deref()
-            .unwrap_or("<unset>"),
-        "resolved object store settings"
-    );
 }
 
 fn command_name(command: &Command) -> &'static str {
@@ -69,7 +55,6 @@ fn command_name(command: &Command) -> &'static str {
         Command::List { .. } => "list",
         Command::Init => "init",
         Command::Cache { command } => match command {
-            CacheCommand::Hydrate { .. } => "cache_hydrate",
             CacheCommand::Clean { .. } => "cache_clean",
             CacheCommand::Prune { .. } => "cache_prune",
         },
@@ -79,13 +64,5 @@ fn command_name(command: &Command) -> &'static str {
         Command::SelfCmd { command } => match command {
             SelfCommand::Update => "self_update",
         },
-    }
-}
-
-fn object_store_auth_mode(config: &Config) -> &'static str {
-    match config.object_store.auth_mode {
-        Some(ObjectStoreAuthMode::Direct) => "direct",
-        Some(ObjectStoreAuthMode::Proxy) => "proxy",
-        None => "<unset>",
     }
 }

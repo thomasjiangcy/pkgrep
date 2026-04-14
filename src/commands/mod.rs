@@ -24,7 +24,6 @@ pub fn execute(cwd: &Path, config: &Config, command: Command) -> anyhow::Result<
         Command::List { json } => list::run_list(cwd, json),
         Command::Init => init::run_init(cwd),
         Command::Cache { command } => match command {
-            CacheCommand::Hydrate { dep_specs } => cache::run_cache_hydrate(cwd, config, dep_specs),
             CacheCommand::Clean { yes } => cache::run_cache_clean(cwd, config, yes),
             CacheCommand::Prune { yes } => cache::run_cache_prune(cwd, config, yes),
         },

@@ -51,9 +51,6 @@ pkgrep remove git:https://github.com/facebook/react.git@v18.3.1 --yes
 ## Cache Commands
 
 ```bash
-# Hydrate from configured remote object store
-pkgrep cache hydrate git:https://github.com/facebook/react.git@v18.3.1
-
 # Dry-run prune first
 pkgrep cache prune
 
@@ -68,7 +65,5 @@ pkgrep cache clean --yes
 
 - `pkgrep pull <name>@<version>` fails with ambiguity:
   - Multiple ecosystems detected. Use `npm:` or `pypi:` prefix.
-- `pkgrep cache hydrate` fails:
-  - Remote backend is not configured or object store credentials/proxy are missing.
 - `pkgrep path` returns no link:
   - Dependency was not pulled in this project yet, or was removed.

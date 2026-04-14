@@ -11,7 +11,6 @@ use crate::installed_version;
 use crate::providers;
 use crate::registry_resolver;
 use crate::registry_resolver::RequestedRevisionSource;
-use crate::remote_cache;
 use crate::source;
 
 #[derive(Clone, Debug)]
@@ -120,13 +119,10 @@ pub(super) fn run_pull(
         "pull requested"
     );
 
-    let remote_cache_client = remote_cache::RemoteCacheClient::from_config(config)?;
     let cache_root = source::cache_root_for(cwd, &config.cache_dir);
 
-    let mut hydrated_from_remote = 0usize;
     let mut resolved_via_git = 0usize;
     let mut fetched_from_git = 0usize;
-    let mut published_to_remote = 0usize;
     let total_targets = resolved.targets.len();
 
     for (index, target_resolution) in resolved.targets.iter().enumerate() {
@@ -139,31 +135,11 @@ pub(super) fn run_pull(
             target.requested_revision
         );
 
-        let (
-            effective_target,
-            materialized,
-            used_remote_cache,
-            resolved_from_git,
-            fetched_from_origin,
-            published,
-        ) = resolve_materialized_pull_target(
-            cwd,
-            config,
-            remote_cache_client.as_ref(),
-            target_resolution,
-            fallback_repo_head,
-        )?;
-        if used_remote_cache {
-            hydrated_from_remote += 1;
-        }
-        if resolved_from_git {
-            resolved_via_git += 1;
-        }
-        if fetched_from_origin {
+        let (effective_target, materialized) =
+            resolve_materialized_pull_target(cwd, config, target_resolution, fallback_repo_head)?;
+        resolved_via_git += 1;
+        if materialized.git_fetch_performed {
             fetched_from_git += 1;
-        }
-        if published {
-            published_to_remote += 1;
         }
 
         let link_metadata = index::LinkRecordMetadata {
@@ -199,12 +175,10 @@ pub(super) fn run_pull(
     }
 
     println!(
-        "Pull completed: total={} hydrated_from_remote={} resolved_via_git={} fetched_from_git={} published_to_remote={}",
+        "Pull completed: total={} resolved_via_git={} fetched_from_git={}",
         resolved.targets.len(),
-        hydrated_from_remote,
         resolved_via_git,
-        fetched_from_git,
-        published_to_remote
+        fetched_from_git
     );
 
     Ok(())
@@ -568,41 +542,10 @@ fn repo_head_fallback_context(
 fn resolve_materialized_pull_target(
     cwd: &Path,
     config: &Config,
-    remote_cache_client: Option<&remote_cache::RemoteCacheClient>,
     target_resolution: &PullTargetResolution,
     fallback_repo_head: bool,
-) -> anyhow::Result<(
-    source::GitPullTarget,
-    source::MaterializedSource,
-    bool,
-    bool,
-    bool,
-    bool,
-)> {
-    let target = &target_resolution.target;
-
-    if let Some(client) = remote_cache_client {
-        println!("  -> checking remote cache");
-        match client
-            .hydrate_git_source(cwd, config, target)
-            .with_context(|| {
-                format!(
-                    "failed to hydrate git source {}@{} from remote cache",
-                    target.git_url, target.requested_revision
-                )
-            })? {
-            remote_cache::HydrateOutcome::Hydrated(materialized)
-            | remote_cache::HydrateOutcome::AlreadyPresent(materialized) => {
-                println!("  -> hydrated from remote cache");
-                return Ok((target.clone(), materialized, true, false, false, false));
-            }
-            remote_cache::HydrateOutcome::NotFound => {
-                println!("  -> remote cache miss; resolving via local git mirror");
-            }
-        }
-    } else {
-        println!("  -> resolving via local git mirror");
-    }
+) -> anyhow::Result<(source::GitPullTarget, source::MaterializedSource)> {
+    println!("  -> resolving via local git mirror");
 
     let (effective_target, materialized) =
         materialize_pull_target(cwd, config, target_resolution, fallback_repo_head)?;
@@ -613,34 +556,7 @@ fn resolve_materialized_pull_target(
         println!("  -> reused requested revision from local mirror");
     }
 
-    let mut published = false;
-    if let Some(client) = remote_cache_client {
-        match client.publish_git_source(&effective_target, &materialized) {
-            Ok(()) => {
-                published = true;
-                println!("  -> published to remote cache");
-            }
-            Err(err) => {
-                warn!(
-                    git_url = %effective_target.git_url,
-                    requested_revision = %effective_target.requested_revision,
-                    error = %err,
-                    "failed to publish source to remote cache after git fetch"
-                );
-                println!("  -> warning: publish to remote cache failed");
-            }
-        }
-    }
-
-    let fetched_from_origin = materialized.git_fetch_performed;
-    Ok((
-        effective_target,
-        materialized,
-        false,
-        true,
-        fetched_from_origin,
-        published,
-    ))
+    Ok((effective_target, materialized))
 }
 
 fn materialize_pull_target(

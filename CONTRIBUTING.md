@@ -43,13 +43,6 @@ just hooks-run
 - Prefer integration tests with real inputs and real processes (fixtures, local git repos, testcontainers-backed services).
 - The project enforces this with `just test-no-mocks` (included in `just ci`).
 
-Remote cache E2E tests require Docker:
-
-```bash
-just test-remote-s3
-just test-remote-azure
-```
-
 ## Adding a Lockfile Provider
 
 Use this checklist when adding support for a new project lockfile.

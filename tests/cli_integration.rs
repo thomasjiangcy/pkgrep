@@ -300,14 +300,15 @@ fn cache_clean_without_yes_is_noop() {
 }
 
 #[test]
-fn hydrate_requires_remote_backend() {
+fn cache_hydrate_subcommand_is_removed() {
     let temp = TempDir::new().expect("tempdir");
     cmd_in_temp(&temp)
-        .env("PKGREP_BACKEND", "local")
         .args(["cache", "hydrate"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("hydrate_requires_remote_backend"));
+        .stderr(predicate::str::contains(
+            "unrecognized subcommand 'hydrate'",
+        ));
 }
 
 #[test]
@@ -1393,19 +1394,4 @@ fn cache_prune_requires_yes_and_prunes_stale_checkouts_and_mirrors() {
 
     assert_eq!(count_cached_checkouts(&cache_dir), 0);
     assert_eq!(count_cached_mirrors(&cache_dir), 0);
-}
-
-#[test]
-fn hydrate_remote_backend_requires_bucket_config() {
-    let temp = TempDir::new().expect("tempdir");
-    cmd_in_temp(&temp)
-        .env("PKGREP_BACKEND", "s3")
-        .args([
-            "cache",
-            "hydrate",
-            "git:https://example.com/org/repo.git@deadbeef",
-        ])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("object_store.bucket must be set"));
 }

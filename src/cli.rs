@@ -86,12 +86,6 @@ pub enum Command {
 
 #[derive(Debug, Subcommand)]
 pub enum CacheCommand {
-    /// Hydrate local cache entries from remote object store cache.
-    Hydrate {
-        /// Optional dependency spec(s). If omitted, use project files from cwd.
-        dep_specs: Vec<String>,
-    },
-
     /// Clean local cache entries.
     Clean {
         /// Required for destructive action.
@@ -166,6 +160,12 @@ mod tests {
     #[test]
     fn remove_requires_dep_spec() {
         let result = Cli::try_parse_from(["pkgrep", "remove", "--yes"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_removed_cache_hydrate_subcommand() {
+        let result = Cli::try_parse_from(["pkgrep", "cache", "hydrate"]);
         assert!(result.is_err());
     }
 

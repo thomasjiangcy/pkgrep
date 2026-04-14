@@ -7,8 +7,6 @@ use crate::error::PkgrepError;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Backend {
     Local,
-    S3,
-    AzureBlob,
     AgentFs,
 }
 
@@ -16,8 +14,6 @@ impl Backend {
     fn parse(value: &str) -> Result<Self, PkgrepError> {
         match value {
             "local" => Ok(Self::Local),
-            "s3" => Ok(Self::S3),
-            "azure_blob" => Ok(Self::AzureBlob),
             "agentfs" => Ok(Self::AgentFs),
             other => Err(PkgrepError::InvalidBackend(other.to_string())),
         }
@@ -26,36 +22,9 @@ impl Backend {
     fn as_str(&self) -> &'static str {
         match self {
             Self::Local => "local",
-            Self::S3 => "s3",
-            Self::AzureBlob => "azure_blob",
             Self::AgentFs => "agentfs",
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ObjectStoreAuthMode {
-    Direct,
-    Proxy,
-}
-
-impl ObjectStoreAuthMode {
-    fn parse(value: &str) -> Result<Self, PkgrepError> {
-        match value {
-            "direct" => Ok(Self::Direct),
-            "proxy" => Ok(Self::Proxy),
-            other => Err(PkgrepError::InvalidObjectStoreAuthMode(other.to_string())),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct ObjectStoreConfig {
-    pub bucket: Option<String>,
-    pub prefix: Option<String>,
-    pub endpoint: Option<String>,
-    pub auth_mode: Option<ObjectStoreAuthMode>,
-    pub proxy_identity_header: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -63,7 +32,6 @@ pub struct Config {
     pub backend: Backend,
     pub cache_dir: PathBuf,
     pub worker_pool_size: usize,
-    pub object_store: ObjectStoreConfig,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -71,16 +39,6 @@ struct PartialConfig {
     backend: Option<String>,
     cache_dir: Option<PathBuf>,
     worker_pool_size: Option<usize>,
-    object_store: Option<PartialObjectStoreConfig>,
-}
-
-#[derive(Clone, Debug, Default, Deserialize)]
-struct PartialObjectStoreConfig {
-    bucket: Option<String>,
-    prefix: Option<String>,
-    endpoint: Option<String>,
-    auth_mode: Option<String>,
-    proxy_identity_header: Option<String>,
 }
 
 pub fn load(cwd: &Path) -> Result<Config, PkgrepError> {
@@ -145,27 +103,15 @@ fn partial_from_env() -> Result<PartialConfig, PkgrepError> {
         Err(_) => None,
     };
 
-    let object_store = Some(PartialObjectStoreConfig {
-        bucket: std::env::var("PKGREP_OBJECT_STORE_BUCKET").ok(),
-        prefix: std::env::var("PKGREP_OBJECT_STORE_PREFIX").ok(),
-        endpoint: std::env::var("PKGREP_OBJECT_STORE_ENDPOINT").ok(),
-        auth_mode: std::env::var("PKGREP_OBJECT_STORE_AUTH_MODE").ok(),
-        proxy_identity_header: std::env::var("PKGREP_OBJECT_STORE_PROXY_IDENTITY_HEADER").ok(),
-    });
-
-    // Parse-only validation that backend/auth mode values are known, but keep layering behavior.
+    // Parse-only validation that backend values are known, but keep layering behavior.
     if let Some(ref raw) = backend {
         let _ = Backend::parse(raw)?;
-    }
-    if let Some(ref mode) = object_store.as_ref().and_then(|o| o.auth_mode.clone()) {
-        let _ = ObjectStoreAuthMode::parse(mode)?;
     }
 
     Ok(PartialConfig {
         backend,
         cache_dir,
         worker_pool_size,
-        object_store,
     })
 }
 
@@ -198,45 +144,10 @@ fn merge_config(
         return Err(PkgrepError::InvalidWorkerPoolSize(worker_pool_size));
     }
 
-    let global_os = global.object_store.unwrap_or_default();
-    let project_os = project.object_store.unwrap_or_default();
-    let env_os = env.object_store.unwrap_or_default();
-
-    let auth_mode = env_os
-        .auth_mode
-        .as_deref()
-        .map(ObjectStoreAuthMode::parse)
-        .transpose()?
-        .or(project_os
-            .auth_mode
-            .as_deref()
-            .map(ObjectStoreAuthMode::parse)
-            .transpose()?)
-        .or(global_os
-            .auth_mode
-            .as_deref()
-            .map(ObjectStoreAuthMode::parse)
-            .transpose()?);
-
-    let object_store = ObjectStoreConfig {
-        bucket: env_os.bucket.or(project_os.bucket).or(global_os.bucket),
-        prefix: env_os.prefix.or(project_os.prefix).or(global_os.prefix),
-        endpoint: env_os
-            .endpoint
-            .or(project_os.endpoint)
-            .or(global_os.endpoint),
-        auth_mode,
-        proxy_identity_header: env_os
-            .proxy_identity_header
-            .or(project_os.proxy_identity_header)
-            .or(global_os.proxy_identity_header),
-    };
-
     Ok(Config {
         backend,
         cache_dir,
         worker_pool_size,
-        object_store,
     })
 }
 
@@ -261,11 +172,11 @@ mod tests {
     #[test]
     fn project_overrides_global_and_env_overrides_project() {
         let global = make_partial(Some("local"), Some(4));
-        let project = make_partial(Some("s3"), Some(8));
-        let env = make_partial(Some("azure_blob"), None);
+        let project = make_partial(Some("agentfs"), Some(8));
+        let env = make_partial(Some("local"), None);
 
         let cfg = merge_config(global, project, env).expect("merge");
-        assert_eq!(cfg.backend, Backend::AzureBlob);
+        assert_eq!(cfg.backend, Backend::Local);
         assert_eq!(cfg.worker_pool_size, 8);
     }
 
