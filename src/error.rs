@@ -7,9 +7,6 @@ pub enum PkgrepError {
     #[error("invalid worker_pool_size: {0} (must be >= 1)")]
     InvalidWorkerPoolSize(usize),
 
-    #[error("invalid backend: {0} (expected one of: local, agentfs)")]
-    InvalidBackend(String),
-
     #[error("failed to read config file {path}: {source}")]
     ConfigRead {
         path: PathBuf,

@@ -121,7 +121,6 @@ pub(super) fn run_pull(
 
     let cache_root = source::cache_root_for(cwd, &config.cache_dir);
 
-    let mut resolved_via_git = 0usize;
     let mut fetched_from_git = 0usize;
     let total_targets = resolved.targets.len();
 
@@ -137,7 +136,6 @@ pub(super) fn run_pull(
 
         let (effective_target, materialized) =
             resolve_materialized_pull_target(cwd, config, target_resolution, fallback_repo_head)?;
-        resolved_via_git += 1;
         if materialized.git_fetch_performed {
             fetched_from_git += 1;
         }
@@ -175,9 +173,8 @@ pub(super) fn run_pull(
     }
 
     println!(
-        "Pull completed: total={} resolved_via_git={} fetched_from_git={}",
+        "Pull completed: total={} fetched_from_git={}",
         resolved.targets.len(),
-        resolved_via_git,
         fetched_from_git
     );
 

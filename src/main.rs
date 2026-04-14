@@ -41,7 +41,6 @@ fn log_command_start(cwd: &std::path::Path, config: &Config, command: &Command) 
     info!(
         command = command_name(command),
         cwd = %cwd.display(),
-        backend = %config.backend,
         worker_pool_size = config.worker_pool_size,
         "starting command"
     );

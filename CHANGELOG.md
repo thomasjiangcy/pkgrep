@@ -7,6 +7,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Removed
+
+- Unused `backend` / `PKGREP_BACKEND` configuration handling after the object storage feature removal.
+- Unused `.dev/azurite` and `.dev/seaweedfs` object-store fixture files left over from the deleted remote-cache test flow.
+
+### Changed
+
+- Simplified `pkgrep pull` completion output now that all pulls resolve through the local git cache path.
+
 ## [0.7.0] - 2026-04-14
 
 ### Removed
