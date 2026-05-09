@@ -74,7 +74,7 @@ pub enum ProviderError {
     #[error("failed to parse YAML provider input {path}: {source}")]
     Yaml {
         path: PathBuf,
-        source: serde_yml::Error,
+        source: serde_norway::Error,
     },
 }
 
@@ -206,7 +206,7 @@ mod tests {
         assert!(deps.iter().any(|dep| {
             dep.ecosystem == ProviderEcosystem::Pypi
                 && dep.name == "requests"
-                && dep.version == "2.32.3"
+                && dep.version == "2.33.1"
         }));
     }
 

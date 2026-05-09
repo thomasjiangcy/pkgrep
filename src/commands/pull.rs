@@ -186,10 +186,10 @@ fn resolve_pull_targets_from_specs(
     dep_specs: &[String],
 ) -> anyhow::Result<Vec<PullTargetResolution>> {
     let normalized_specs = normalize_explicit_dep_specs_for_pull(cwd, dep_specs)?;
-    let parsed_specs = super::parse_dep_specs(&normalized_specs)?;
+    let parsed_specs = crate::commands::parse_dep_specs(&normalized_specs)?;
     let mut targets = Vec::new();
 
-    for (original_spec, spec) in normalized_specs.into_iter().zip(parsed_specs.into_iter()) {
+    for (original_spec, spec) in normalized_specs.into_iter().zip(parsed_specs) {
         match spec.source_kind {
             SourceKind::Git {
                 url,

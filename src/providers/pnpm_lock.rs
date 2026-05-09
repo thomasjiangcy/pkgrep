@@ -12,7 +12,7 @@ pub(super) fn parse(path: &Path) -> Result<Vec<NormalizedDependency>, ProviderEr
         source,
     })?;
 
-    let lock: PnpmLock = serde_yml::from_str(&raw).map_err(|source| ProviderError::Yaml {
+    let lock: PnpmLock = serde_norway::from_str(&raw).map_err(|source| ProviderError::Yaml {
         path: path.to_path_buf(),
         source,
     })?;

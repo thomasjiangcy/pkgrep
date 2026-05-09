@@ -529,7 +529,7 @@ version = 1
 
 [[package]]
 name = "requests"
-version = "2.32.3"
+version = "2.33.1"
 "#,
         )
         .expect("write uv lock");
@@ -539,7 +539,7 @@ version = "2.32.3"
         assert_eq!(
             version,
             Some(InstalledVersion {
-                version: "2.32.3".to_string(),
+                version: "2.33.1".to_string(),
                 source: InstalledVersionSource::UvLock,
             })
         );

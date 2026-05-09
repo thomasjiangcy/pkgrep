@@ -430,14 +430,14 @@ fn pull_shorthand_infers_pypi_with_single_python_lockfile() {
 
     cmd_in_temp(&temp)
         .env("PKGREP_PYPI_REGISTRY_URL", "not-a-url")
-        .args(["pull", "requests@2.32.3"])
+        .args(["pull", "requests@2.33.1"])
         .assert()
         .failure()
         .stdout(predicate::str::contains(
-            "inferred shorthand 'requests@2.32.3' as 'pypi:requests@2.32.3'",
+            "inferred shorthand 'requests@2.33.1' as 'pypi:requests@2.33.1'",
         ))
         .stdout(predicate::str::contains(
-            "resolving package metadata for pypi:requests@2.32.3",
+            "resolving package metadata for pypi:requests@2.33.1",
         ))
         .stderr(predicate::str::contains("invalid pypi registry URL"));
 }
@@ -452,7 +452,7 @@ version = 1
 
 [[package]]
 name = "requests"
-version = "2.32.3"
+version = "2.33.1"
 "#,
     )
     .expect("write uv lock");
@@ -463,10 +463,10 @@ version = "2.32.3"
         .assert()
         .failure()
         .stdout(predicate::str::contains(
-            "detected installed pypi version for requests: 2.32.3 (from uv.lock)",
+            "detected installed pypi version for requests: 2.33.1 (from uv.lock)",
         ))
         .stdout(predicate::str::contains(
-            "resolving package metadata for pypi:requests@2.32.3",
+            "resolving package metadata for pypi:requests@2.33.1",
         ))
         .stderr(predicate::str::contains("invalid pypi registry URL"));
 }
@@ -481,7 +481,7 @@ version = 1
 
 [[package]]
 name = "requests"
-version = "2.32.3"
+version = "2.33.1"
 "#,
     )
     .expect("write uv lock");
@@ -495,10 +495,10 @@ version = "2.32.3"
             "inferred shorthand 'requests' as 'pypi:requests'",
         ))
         .stdout(predicate::str::contains(
-            "detected installed pypi version for requests: 2.32.3 (from uv.lock)",
+            "detected installed pypi version for requests: 2.33.1 (from uv.lock)",
         ))
         .stdout(predicate::str::contains(
-            "resolving package metadata for pypi:requests@2.32.3",
+            "resolving package metadata for pypi:requests@2.33.1",
         ))
         .stderr(predicate::str::contains("invalid pypi registry URL"));
 }

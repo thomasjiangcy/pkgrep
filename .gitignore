@@ -1,3 +1,4 @@
 /target
 .pkgrep/
 .lefthook-local.yml
+.DS_Store

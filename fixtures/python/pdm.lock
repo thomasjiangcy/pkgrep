@@ -4,6 +4,6 @@ content_hash = "sha256:fixture"
 
 [[package]]
 name = "requests"
-version = "2.32.3"
+version = "2.33.1"
 summary = "Fixture package"
 files = []

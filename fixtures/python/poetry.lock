@@ -1,6 +1,6 @@
 [[package]]
 name = "requests"
-version = "2.32.3"
+version = "2.33.1"
 description = "Fixture package"
 optional = false
 python-versions = ">=3.8"
