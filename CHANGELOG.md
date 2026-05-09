@@ -7,6 +7,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-05-09
+
 ### Removed
 
 - Unused `backend` / `PKGREP_BACKEND` configuration handling after the object storage feature removal.
