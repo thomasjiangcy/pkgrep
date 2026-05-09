@@ -2,3 +2,5 @@
 rust = "stable"
 just = "latest"
 lefthook = "latest"
+"cargo:cargo-deny" = "0.19.4"
+"cargo:cargo-machete" = "0.9.2"

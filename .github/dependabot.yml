@@ -7,6 +7,11 @@ updates:
       time: "06:00"
       timezone: "UTC"
     versioning-strategy: "auto"
+    groups:
+      cargo-patch-minor:
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"

@@ -310,6 +310,8 @@ Prerequisites:
 - `mise` (required for project tooling)
 - `just` (required task runner)
 - `lefthook` (required for git hook checks)
+- `cargo-deny` (installed by `mise install`)
+- `cargo-machete` (installed by `mise install`)
 
 ### Tooling via mise
 
@@ -323,6 +325,8 @@ Common development commands:
 ```bash
 just fmt
 just lint
+just deps-check
+just deps-unused
 just test
 just ci
 just hooks-run
@@ -331,7 +335,13 @@ just hooks-run
 Git hooks:
 
 - `pre-commit`: no-mocks policy + `cargo fmt --check`
-- `pre-push`: clippy (`-D warnings`) + full test suite
+- `pre-push`: full `just ci` gate
+
+Dependency maintenance:
+
+- Dependabot checks Cargo and GitHub Actions daily.
+- `just deps-check` runs `cargo-deny` for advisories, license policy, duplicate versions, and allowed sources.
+- `just deps-unused` runs `cargo-machete` to detect unused direct dependencies.
 
 ### Maintainer Release Flow
 

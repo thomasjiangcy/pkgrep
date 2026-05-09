@@ -8,6 +8,8 @@ Thanks for contributing. This guide focuses on the fastest path to ship safe cha
 - `mise`
 - `just`
 - `lefthook`
+- `cargo-deny` (installed by `mise install`)
+- `cargo-machete` (installed by `mise install`)
 
 ## Setup
 
@@ -28,6 +30,10 @@ just lint
 
 # test
 just test
+
+# dependency policy and unused dependency checks
+just deps-check
+just deps-unused
 
 # full local gate (required before PR)
 just ci
