@@ -25,7 +25,18 @@ jobs:
         run: cargo fmt --all --check
 
       - name: Lint
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      - name: Install dependency tooling
+        uses: taiki-e/install-action@v2.77.2
+        with:
+          tool: cargo-deny@0.19.4,cargo-machete@0.9.2
+
+      - name: Dependency policy
+        run: cargo deny check
+
+      - name: Unused dependencies
+        run: cargo machete
 
       - name: Test
-        run: cargo test --all-targets --all-features
+        run: cargo test --locked --all-targets --all-features
