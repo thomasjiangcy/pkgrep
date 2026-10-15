@@ -15,7 +15,7 @@ pub(super) fn run_remove(
     dep_specs: Vec<String>,
     yes: bool,
 ) -> anyhow::Result<()> {
-    let parsed_specs = super::parse_dep_specs(&dep_specs)?;
+    let parsed_specs = crate::commands::parse_dep_specs(&dep_specs)?;
 
     if !yes {
         warn!(

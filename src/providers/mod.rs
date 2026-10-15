@@ -140,7 +140,7 @@ pub fn parse_provider_input(
 mod tests {
     use std::path::PathBuf;
 
-    use super::*;
+    use crate::providers::*;
 
     fn fixture(path: &str) -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(path)

@@ -105,7 +105,7 @@ pub fn resolve_default_remote_revision(git_url: &str) -> anyhow::Result<Resolved
         .default_branch()
         .with_context(|| format!("failed to resolve default branch for {}", git_url))?
         .as_str()
-        .ok_or_else(|| anyhow::anyhow!("default branch for {} is not valid UTF-8", git_url))?
+        .with_context(|| format!("default branch for {} is not valid UTF-8", git_url))?
         .trim()
         .to_string();
 
@@ -575,7 +575,7 @@ fn create_symlink(target: &Path, link: &Path) -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::source::*;
 
     #[test]
     fn targeted_refspecs_for_tag_like_revision() {

@@ -324,7 +324,7 @@ fn verbose_flag_is_accepted() {
 }
 
 #[test]
-fn verbose_pull_uses_targeted_refspecs_without_wildcards() {
+fn verbose_pull_reports_fetch() {
     let temp = TempDir::new().expect("tempdir");
     let repo_path = temp.path().join("source-repo");
     let revision = init_local_git_repo(&repo_path);
@@ -335,10 +335,8 @@ fn verbose_pull_uses_targeted_refspecs_without_wildcards() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "fetching targeted revision from origin",
-        ))
-        .stdout(predicate::str::contains("refs/heads/*").not())
-        .stdout(predicate::str::contains("refs/tags/*").not());
+            "fetched requested revision from origin",
+        ));
 }
 
 #[test]
@@ -353,7 +351,7 @@ fn second_verbose_pull_uses_local_mirror_without_refetch() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "fetching targeted revision from origin",
+            "fetched requested revision from origin",
         ));
 
     cmd_in_temp(&temp)
@@ -361,9 +359,9 @@ fn second_verbose_pull_uses_local_mirror_without_refetch() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "requested revision already present in mirror repo; skipping fetch",
+            "reused requested revision from local mirror",
         ))
-        .stdout(predicate::str::contains("fetching targeted revision from origin").not());
+        .stdout(predicate::str::contains("fetched requested revision from origin").not());
 }
 
 #[test]

@@ -7,6 +7,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Changed
+
+- Updated Rust dependencies, development tooling, and GitHub Actions to current stable releases.
+
+### Fixed
+
+- Updated verbose pull integration tests to match the current user-facing fetch messages.
+- Resolved dependency security advisories affecting `anyhow`, `git2`, `quinn-proto`, `rustls`, and `tar`.
+
 ## [0.7.1] - 2026-05-09
 
 ### Removed
@@ -118,7 +127,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Git-only source retrieval pipeline with npm/PyPI dependency resolution mapped to upstream git repos.
 - Remote cache support via object stores (`s3`, `azure_blob`) with hydrate/publish flow.
 
-[Unreleased]: https://github.com/thomasjiangcy/pkgrep/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/thomasjiangcy/pkgrep/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/thomasjiangcy/pkgrep/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/thomasjiangcy/pkgrep/compare/v0.5.0...v0.5.1

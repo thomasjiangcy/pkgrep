@@ -275,7 +275,7 @@ fn sanitize_locator_component(raw: &str, allow_at: bool) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::depspec::*;
     use proptest::prelude::*;
 
     #[test]

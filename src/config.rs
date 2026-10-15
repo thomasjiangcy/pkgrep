@@ -113,7 +113,7 @@ fn merge_config(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::config::*;
 
     fn make_partial(cache_dir: Option<PathBuf>, worker_pool_size: Option<usize>) -> PartialConfig {
         PartialConfig {
