@@ -133,7 +133,7 @@ pub enum SelfCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::cli::*;
 
     #[test]
     fn parses_cache_clean_yes() {

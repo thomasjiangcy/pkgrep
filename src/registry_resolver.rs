@@ -438,7 +438,7 @@ struct CratesVersion {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::registry_resolver::*;
 
     #[test]
     fn normalizes_github_shorthand_url() {

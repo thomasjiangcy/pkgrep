@@ -4,7 +4,7 @@ use crate::depspec::{self, Ecosystem, SourceKind};
 use crate::index;
 
 pub(super) fn run_path(cwd: &Path, dep_spec: String) -> anyhow::Result<()> {
-    let parsed_specs = super::parse_dep_specs(std::slice::from_ref(&dep_spec))?;
+    let parsed_specs = crate::commands::parse_dep_specs(std::slice::from_ref(&dep_spec))?;
     let spec = parsed_specs
         .into_iter()
         .next()

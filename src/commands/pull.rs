@@ -659,7 +659,7 @@ fn ecosystem_from_provider_kind(kind: &providers::ProviderKind) -> &'static str 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::commands::pull::*;
     use crate::source::GitPullTarget;
 
     #[test]
