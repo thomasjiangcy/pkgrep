@@ -93,7 +93,8 @@ verify_sha256() {
     return 0
   fi
 
-  echo "warning: shasum/sha256sum not found; skipping checksum verification" >&2
+  echo "missing checksum verifier: install shasum or sha256sum" >&2
+  return 1
 }
 
 while [ "$#" -gt 0 ]; do
@@ -155,11 +156,8 @@ CHECKSUM_PATH="${ARCHIVE_PATH}.sha256"
 echo "installing ${BIN_NAME} ${RESOLVED_VERSION} (${TARGET}) from ${REPO}"
 http_get_to_file "${ARCHIVE_URL}" "${ARCHIVE_PATH}"
 
-if http_get_to_file "${CHECKSUM_URL}" "${CHECKSUM_PATH}"; then
-  verify_sha256 "${ARCHIVE_PATH}" "${CHECKSUM_PATH}"
-else
-  echo "warning: checksum file unavailable; continuing without checksum verification" >&2
-fi
+http_get_to_file "${CHECKSUM_URL}" "${CHECKSUM_PATH}"
+verify_sha256 "${ARCHIVE_PATH}" "${CHECKSUM_PATH}"
 
 tar -xzf "${ARCHIVE_PATH}" -C "${TMP_DIR}" "${BIN_NAME}"
 mkdir -p "${INSTALL_DIR}"

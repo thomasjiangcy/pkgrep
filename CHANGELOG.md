@@ -7,6 +7,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-10-26
+
+### Security
+
+- Updated `rustls-webpki` and `webpki-root-certs` to reject the compromised eMudhra/emSign certificate hierarchy.
+- Changed the install script to fail closed when a release checksum cannot be downloaded or verified.
+
 ## [0.7.2] - 2026-10-15
 
 ### Changed
@@ -129,7 +136,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Git-only source retrieval pipeline with npm/PyPI dependency resolution mapped to upstream git repos.
 - Remote cache support via object stores (`s3`, `azure_blob`) with hydrate/publish flow.
 
-[Unreleased]: https://github.com/thomasjiangcy/pkgrep/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/thomasjiangcy/pkgrep/compare/v0.7.3...HEAD
+[0.7.3]: https://github.com/thomasjiangcy/pkgrep/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/thomasjiangcy/pkgrep/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/thomasjiangcy/pkgrep/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/thomasjiangcy/pkgrep/compare/v0.6.0...v0.7.0
